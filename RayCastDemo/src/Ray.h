@@ -1,284 +1,140 @@
 #pragma once
-
-// I N C L U D E S ///////////////////////////////////////////////////////////
-#include <io.h>
-#include <conio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <dos.h>
-//#include <bios.h>
-#include <fcntl.h>
-#include <memory.h>
-#include <malloc.h>
-#include <math.h>
-#include <string.h>
-//#include <graph.h>  // we'll use microsofts stuff for this progrom
-
-//depencies and a facade for the system calls the original code relied on.
-#include "SDLSystem.h"
-#include "Window.h"
+#include <array>
+#include <cmath>
 #include "Renderer.h"
 #include "InputManager.h"
+#include "SDLSystem.h"
 #include "Utils.h"
-namespace Config {
-    using namespace std::literals::string_view_literals;
-    static const std::string_view TITLE = "Ray Caster Demo"sv;
-    static const int WIN_WIDTH = 640;
-    static const int WIN_HEIGHT = 480;
-};
-SDLSystem _sdl;
-Window _window{ Config::TITLE, Config::WIN_WIDTH, Config::WIN_HEIGHT };
-Renderer _r{ _window };
-InputManager _input{};
 
-enum class RectStyle {
-    OUTLINE,
-    FILL
-};
-enum class LutRegister : size_t { //giving names to the old Windows <graph.h> color values
-    Black = 0,
-    DarkBlue = 1,
-    DarkGreen = 2,
-    DarkCyan = 3,
-    DarkRed = 4,
-    DarkMagenta = 5,
-    Brown = 6,
-    Gray = 7,
-    DarkGray = 8,
-    LightBlue = 9,
-    LightGreen = 10,
-    LightCyan = 11,
-    LightRed = 12,
-    LightMagenta = 13,
-    Yellow = 14,
-    White = 15
-};
-// declare SDL_Color values for each color in the original LUT
-static constexpr SDL_Color Black = { 0, 0, 0 };
-static constexpr SDL_Color DarkBlue = { 0, 0, 139 };
-static constexpr SDL_Color DarkGreen = { 0, 139, 0 };
-static constexpr SDL_Color DarkCyan = { 0, 139, 139 };
-static constexpr SDL_Color DarkRed = { 139, 0, 0 };
-static constexpr SDL_Color DarkMagenta = { 139, 0, 139 };
-static constexpr SDL_Color Brown = { 139, 69, 19 };
-static constexpr SDL_Color Gray = { 128, 128, 128 };
-static constexpr SDL_Color DarkGray = { 105, 105, 105 };
-static constexpr SDL_Color LightBlue = { 65, 105, 225 };
-static constexpr SDL_Color LightGreen = { 144, 238, 144 };
-static constexpr SDL_Color LightCyan = { 63, 255, 255 };
-static constexpr SDL_Color LightRed = { 255, 128, 128 };
-static constexpr SDL_Color LightMagenta = { 255, 128, 255 };
-static constexpr SDL_Color Yellow = { 255, 255, 0 };
-static constexpr SDL_Color White = { 255, 255, 255 };
+class Ray {
+    enum class RectStyle {
+        OUTLINE,
+        FILL
+    };
+    enum class LutRegister : size_t { //giving names to the old Windows <graph.h> color values
+        Black = 0,
+        DarkBlue = 1,
+        DarkGreen = 2,
+        DarkCyan = 3,
+        DarkRed = 4,
+        DarkMagenta = 5,
+        Brown = 6,
+        Gray = 7,
+        DarkGray = 8,
+        LightBlue = 9,
+        LightGreen = 10,
+        LightCyan = 11,
+        LightRed = 12,
+        LightMagenta = 13,
+        Yellow = 14,
+        White = 15
+    };
+    // declare SDL_Color values for each color in the original LUT
+    static constexpr SDL_Color Black = { 0, 0, 0 };
+    static constexpr SDL_Color DarkBlue = { 0, 0, 139 };
+    static constexpr SDL_Color DarkGreen = { 0, 139, 0 };
+    static constexpr SDL_Color DarkCyan = { 0, 139, 139 };
+    static constexpr SDL_Color DarkRed = { 139, 0, 0 };
+    static constexpr SDL_Color DarkMagenta = { 139, 0, 139 };
+    static constexpr SDL_Color Brown = { 139, 69, 19 };
+    static constexpr SDL_Color Gray = { 128, 128, 128 };
+    static constexpr SDL_Color DarkGray = { 105, 105, 105 };
+    static constexpr SDL_Color LightBlue = { 65, 105, 225 };
+    static constexpr SDL_Color LightGreen = { 144, 238, 144 };
+    static constexpr SDL_Color LightCyan = { 63, 255, 255 };
+    static constexpr SDL_Color LightRed = { 255, 128, 128 };
+    static constexpr SDL_Color LightMagenta = { 255, 128, 255 };
+    static constexpr SDL_Color Yellow = { 255, 255, 0 };
+    static constexpr SDL_Color White = { 255, 255, 255 };
 
-//Palette to translate between LUT value and SDL_Color
-static constexpr std::array<SDL_Color, 16> Palette{
-    Black,
-    DarkBlue,
-    DarkGreen,
-    DarkCyan,
-    DarkRed,
-    DarkMagenta,
-    Brown,
-    Gray,
-    DarkGray,
-    LightBlue,
-    LightGreen,
-    LightCyan,
-    LightRed,
-    LightMagenta,
-    Yellow,
-    White
-};
+    //Palette to translate between LUT value and SDL_Color
+    static constexpr std::array<SDL_Color, 16> Palette{
+        Black,
+        DarkBlue,
+        DarkGreen,
+        DarkCyan,
+        DarkRed,
+        DarkMagenta,
+        Brown,
+        Gray,
+        DarkGray,
+        LightBlue,
+        LightGreen,
+        LightCyan,
+        LightRed,
+        LightMagenta,
+        Yellow,
+        White
+    };
 
-int _lineStartX = 0; 
-int _lineStartY = 0;
-void _setcolor(int reg)  noexcept {
-    SDL_assert(reg > -1 && reg < Palette.size() && "_setColor (int): invalid color register specified");
-    const auto color = Palette[reg];
-    _r.setColor(color);
-}
-void _setcolor(LutRegister reg)  noexcept {
-    const auto index = Utils::to_underlying(reg);
-    SDL_assert(index < Palette.size() && "_setColor (reg): invalid color register specified");
-    const auto color = Palette[index];
-    _r.setColor(color);
-}
-void _setcolor(SDL_Color color)  noexcept {
-    _r.setColor(color);
-}
-void _moveto(int x1, int y1) { 
-    _lineStartX = x1;
-    _lineStartY = y1;
-}
-void _lineto(int x2, int y2)  noexcept {
-    _r.drawLine(_lineStartX, _lineStartY, x2, y2);
-}
-void _setpixel(int x, int y)  noexcept {
-    _r.drawPoint(x, y);
-}
-void _rectangle(RectStyle style, int left, int top, int right, int bottom)  noexcept {
-    SDL_Rect rect{ left, top, right - left, bottom - top };
-    if (style == RectStyle::FILL) {
-        _r.drawFilledRect(rect);
+    const Renderer& _r;
+    InputManager& _input;
+
+    int _x1 = 0;
+    int _y1 = 0;
+    void _setcolor(int reg) const noexcept {
+        SDL_assert(reg > -1 && reg < Palette.size() && "_setColor (int): invalid color register specified");
+        const auto color = Palette[reg];
+        _r.setColor(color);
     }
-    else {
-        _r.drawRect(rect);
+    void _setcolor(LutRegister reg) const noexcept {
+        const auto index = Utils::to_underlying(reg);
+        SDL_assert(index < Palette.size() && "_setColor (reg): invalid color register specified");
+        const auto color = Palette[index];
+        _r.setColor(color);
     }
-}
-// end facade
+    void _setcolor(SDL_Color color) const noexcept {
+        _r.setColor(color);
+    }
+    void _moveto(int x1, int y1) { //TODO: const correctness
+        _x1 = x1;
+        _y1 = y1;
+    }
+    void _lineto(int x2, int y2) const noexcept {
+        _r.drawLine(_x1, _y1, x2, y2);
+    }
+    void _setpixel(int x, int y) const noexcept {
+        _r.drawPoint(x, y);
+    }
+    void _rectangle(RectStyle style, int left, int top, int right, int bottom) const noexcept {
+        SDL_Rect rect{ left, top, right - left, bottom - top };
+        if (style == RectStyle::FILL) {
+            _r.drawFilledRect(rect);
+        }
+        else {
+            _r.drawRect(rect);
+        }
+    }
 
+    static constexpr auto ANGLE_0 = 0;
+    static constexpr auto ANGLE_1 = 5;
+    static constexpr auto ANGLE_2 = 10;
+    static constexpr auto ANGLE_4 = 20;
+    static constexpr auto ANGLE_5 = 25;
+    static constexpr auto ANGLE_6 = 30;
+    static constexpr auto ANGLE_15 = 80;
+    static constexpr auto ANGLE_30 = 160;
+    static constexpr auto ANGLE_45 = 240;
+    static constexpr auto ANGLE_60 = 320;
+    static constexpr auto ANGLE_90 = 480;
+    static constexpr auto ANGLE_135 = 720;
+    static constexpr auto ANGLE_180 = 960;
+    static constexpr auto ANGLE_225 = 1200;
+    static constexpr auto ANGLE_270 = 1440;
+    static constexpr auto ANGLE_315 = 1680;
+    static constexpr auto ANGLE_360 = 1920;
 
-
-
-
-
-
-
-// D E F I N E S /////////////////////////////////////////////////////////////
-
-// #define DEBUG 1
-
-#define OVERBOARD          48 // the absolute closest a player can get to a wall
-
-#define INTERSECTION_FOUND 1
-
-// constants used to represent angles
-
-#define ANGLE_0     0
-#define ANGLE_1     5
-#define ANGLE_2     10
-#define ANGLE_4     20
-#define ANGLE_5     25
-#define ANGLE_6     30
-#define ANGLE_15    80
-#define ANGLE_30    160
-#define ANGLE_45    240
-#define ANGLE_60    320
-#define ANGLE_90    480
-#define ANGLE_135   720
-#define ANGLE_180   960
-#define ANGLE_225   1200
-#define ANGLE_270   1440
-#define ANGLE_315   1680
-#define ANGLE_360   1920
-
-#define WORLD_ROWS    16        // number of rows in the game world
-#define WORLD_COLUMNS 16        // number of columns in the game world
-#define CELL_X_SIZE   64        // size of a cell in the gamw world
-#define CELL_Y_SIZE   64
-
-// size of overall game world
-
-#define WORLD_X_SIZE  (WORLD_COLUMNS * CELL_X_SIZE)
-#define WORLD_Y_SIZE  (WORLD_ROWS    * CELL_Y_SIZE)
-
-// G L O B A L S /////////////////////////////////////////////////////////////
-   
-    float* tan_table;              // tangent tables used to compute initial
-    float* inv_tan_table;          // intersections with ray
-
-
-    float* y_step;                 // x and y steps, used to find intersections
-    float* x_step;                 // after initial one is found
-
-
-    float* cos_table;              // used to cacell out fishbowl effect
-
-    float* inv_cos_table;          // used to compute distances by calculating
-    float* inv_sin_table;          // the hypontenuse
-
-
-    // F U N C T I O N S /////////////////////////////////////////////////////////  
-
-    void Build_Tables(void)
-    {
-
-        int ang;
-        float rad_angle;
-
-        // allocate memory for all look up tables
-
-        // tangent tables equivalent to slopes
-
-        tan_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
-        inv_tan_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
-
-        // step tables used to find next intersections, equivalent to slopes
-        // times width and height of cell
-
-        y_step = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
-        x_step = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
-
-
-        // cos table used to fix view distortion caused by caused by radial projection
-
-        cos_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
-
-
-        // 1/cos and 1/sin tables used to compute distance of intersection very
-        // quickly
-
-        inv_cos_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
-        inv_sin_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
-
-        // create tables, sit back for a sec!
-
-        for (ang = ANGLE_0; ang <= ANGLE_360; ang++)
-        {
-
-            rad_angle = (3.272e-4) + ang * 2 * 3.141592654 / ANGLE_360;
-
-            tan_table[ang] = tan(rad_angle);
-            inv_tan_table[ang] = 1 / tan_table[ang];
-
-
-            // tangent has the incorrect signs in all quadrants except 1, so
-            // manually fix the signs of each quadrant since the tangent is
-            // equivalent to the slope of a line and if the tangent is wrong
-            // then the ray that is case will be wrong
-
-            if (ang >= ANGLE_0 && ang < ANGLE_180)
-            {
-                y_step[ang] = fabs(tan_table[ang] * CELL_Y_SIZE);
-            }
-            else
-                y_step[ang] = -fabs(tan_table[ang] * CELL_Y_SIZE);
-
-            if (ang >= ANGLE_90 && ang < ANGLE_270)
-            {
-                x_step[ang] = -fabs(inv_tan_table[ang] * CELL_X_SIZE);
-            }
-            else
-            {
-                x_step[ang] = fabs(inv_tan_table[ang] * CELL_X_SIZE);
-            }
-
-            // create the sin and cosine tables to copute distances
-
-            inv_cos_table[ang] = 1 / cos(rad_angle);
-            inv_sin_table[ang] = 1 / sin(rad_angle);
-
-        } // end for ang
-
-    // create view filter table.  There is a cosine wave modulated on top of
-    // the view distance as a side effect of casting from a fixed point.
-    // to cancell this effect out, we multiple by the inverse of the cosine
-    // and the result is the proper scale.  Without this we would see a
-    // fishbowl effect, which might be desired in some cases?
-
-        for (ang = -ANGLE_30; ang <= ANGLE_30; ang++)
-        {
-
-            rad_angle = (3.272e-4) + ang * 2 * 3.141592654 / ANGLE_360;
-
-            cos_table[ang + ANGLE_30] = 1 / cos(rad_angle);
-
-        } // end for
-
-    } // end Build_Tables
-
-    /////////////////////////////////////////////////////////////////////////////
+    static constexpr auto WORLD_ROWS = 16; // number of rows in the game world
+    static constexpr auto WORLD_COLUMNS = 16; // number of columns in the game world
+    static constexpr auto CELL_WIDTH = 64; // size of a cell in the gamw world
+    static constexpr auto CELL_HEIGHT = 64;
+    static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
+    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);
+    static constexpr auto OVERBOARD = 48; // the absolute closest a player can get to a wall
+    static constexpr auto START_POS_X = 8;
+    static constexpr auto START_POS_Y = 3;
+    static constexpr auto DUNNO = 3.272e-4f;
+    static constexpr auto TWO_PI = 2.0f * 3.141592654f;
 
     // world map of nxn cells, each cell is 64x64 pixels
     static constexpr char world[WORLD_ROWS][WORLD_COLUMNS] = {
@@ -300,87 +156,113 @@ void _rectangle(RectStyle style, int left, int top, int right, int bottom)  noex
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
     };
 
-    /////////////////////////////////////////////////////////////////////////////
+    // tangent tables equivalent to slopes
+    std::array<float, ANGLE_360 + 1> tan_table; // tangent tables used to compute initial
+    std::array<float, ANGLE_360 + 1> inv_tan_table; // intersections with ray
 
-    void sline(long x1, long y1, long x2, long y2, int color)
-    {
+    // step tables used to find next intersections, equivalent to slopes
+    // times width and height of cell
+    std::array<float, ANGLE_360 + 1> y_step; // x and y steps, used to find intersections
+    std::array<float, ANGLE_360 + 1> x_step; // after initial one is found
 
+    // cos table used to fix view distortion caused by caused by radial projection
+    std::array<float, ANGLE_360 + 1> cos_table; // used to cacell out fishbowl effect
+
+    // 1/cos and 1/sin tables used to compute distance of intersection very quickly
+    std::array<float, ANGLE_360 + 1> inv_cos_table; // used to compute distances by calculating
+    std::array<float, ANGLE_360 + 1> inv_sin_table; // the hypontenuse       
+
+    void Build_Tables(void) noexcept {
+        for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {
+            const float rad_angle = DUNNO + ang * TWO_PI / ANGLE_360;
+            tan_table[ang] = std::tanf(rad_angle);
+            inv_tan_table[ang] = 1.0f / tan_table[ang];
+            // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant since the tangent is
+            // equivalent to the slope of a line and if the tangent is wrong then the ray that is case will be wrong
+            if (ang >= ANGLE_0 && ang < ANGLE_180) {
+                y_step[ang] = std::fabs(tan_table[ang] * CELL_HEIGHT);
+            }
+            else {
+                y_step[ang] = -std::fabs(tan_table[ang] * CELL_HEIGHT);
+            }
+            if (ang >= ANGLE_90 && ang < ANGLE_270) {
+                x_step[ang] = -std::fabs(inv_tan_table[ang] * CELL_WIDTH);
+            }
+            else {
+                x_step[ang] = std::fabs(inv_tan_table[ang] * CELL_WIDTH);
+            }
+            // create the sin and cosine tables to copute distances
+            inv_cos_table[ang] = 1.0f / std::cos(rad_angle);
+            inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
+        }
+        // create view filter table.  There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
+        // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.  Without this we would see a fishbowl effect
+        for (int ang = -ANGLE_30; ang <= ANGLE_30; ang++) {
+            const float rad_angle = DUNNO + ang * TWO_PI / ANGLE_360;
+            const size_t index = ang + ANGLE_30;
+            cos_table[index] = 1.0f / std::cos(rad_angle);
+        }
+    }
+
+    static constexpr auto ORIG_Y = 256;
+    static constexpr auto SCALE_FACTOR = 4;
+    void sline(int x1, int y1, int x2, int y2, LutRegister color) {
         // used a a diagnostic function to draw a scaled line
-
-        x1 = x1 / 4;
-        y1 = 256 - (y1 / 4);
-
-        x2 = x2 / 4;
-        y2 = 256 - (y2 / 4);
-
+        x1 = x1 / SCALE_FACTOR;
+        y1 = ORIG_Y - (y1 / SCALE_FACTOR);
+        x2 = x2 / SCALE_FACTOR;
+        y2 = ORIG_Y - (y2 / SCALE_FACTOR);
         _setcolor(color);
         _moveto((int)x1, (int)y1);
         _lineto((int)x2, (int)y2);
 
-    } // end sline
-
-    /////////////////////////////////////////////////////////////////////////////
-
-    void splot(long x, long y, int color)
-    {
+    }
+    void splot(int x, int y, LutRegister color) {
         // used as a diagnostic function to draw a scaled point
-
-        x = x / 4;
-        y = 256 - (y / 4);
-
+        x = x / SCALE_FACTOR;
+        y = ORIG_Y - (y / SCALE_FACTOR);
         _setcolor(color);
-
         _setpixel((int)x, (int)y);
         _setpixel((int)x + 1, (int)y);
         _setpixel((int)x, (int)y + 1);
         _setpixel((int)x + 1, (int)y + 1);
+    }
 
-    } // end splot
-
-    /////////////////////////////////////////////////////////////////////////////
-
-    void Draw_2D_Map(void)
-    {
-        // draw 2-D map of world
-
-        int row, column, block, t, done = 0;
-
-        for (row = 0; row < WORLD_ROWS; row++)
-        {
-            for (column = 0; column < WORLD_COLUMNS; column++)
-            {
-
-                block = world[row][column];
-
-                // test if there is a solid block there
-
-                if (block == 0)
-                {
-
-                    _setcolor(15);
-                    _rectangle(RectStyle::OUTLINE, column * CELL_X_SIZE / 4, row * CELL_Y_SIZE / 4,
-                        column * CELL_X_SIZE / 4 + CELL_X_SIZE / 4 - 1, row * CELL_Y_SIZE / 4 + CELL_Y_SIZE / 4 - 1);
-
+    static constexpr auto MAP_SCALE_FACTOR = 4;
+    void Draw_2D_Map(void) const noexcept {
+        static constexpr auto SCALED_CELL_WIDTH = CELL_WIDTH / MAP_SCALE_FACTOR;
+        static constexpr auto SCALED_CELL_HEIGHT = CELL_HEIGHT / MAP_SCALE_FACTOR;
+        for (int row = 0; row < WORLD_ROWS; row++) {
+            for (int column = 0; column < WORLD_COLUMNS; column++) {
+                const int left = column * SCALED_CELL_WIDTH;
+                const int top = row * SCALED_CELL_HEIGHT;
+                const int right = left + SCALED_CELL_WIDTH - 1;
+                const int bottom = top + SCALED_CELL_HEIGHT - 1;
+                const int block = world[row][column];
+                if (block == 0) {
+                    _setcolor(LutRegister::White);
+                    _rectangle(RectStyle::OUTLINE, left, top, right, bottom);
                 }
-                else
-                {
-
-                    _setcolor(2);
-                    _rectangle(RectStyle::FILL, column * CELL_X_SIZE / 4, row * CELL_Y_SIZE / 4,
-                        column * CELL_X_SIZE / 4 + CELL_X_SIZE / 4 - 1, row * CELL_Y_SIZE / 4 + CELL_Y_SIZE / 4 - 1);
-
+                else {
+                    _setcolor(LutRegister::DarkGreen);
+                    _rectangle(RectStyle::FILL, left, top, right, bottom);
                 }
+            }
+        }
+    }
 
-            } // end for column
+    static constexpr auto MAX_X = 638; //how far to the right we can draw.
+    static constexpr auto MIN_X = 2; //how far to the left we can draw.
+    static constexpr auto EPSILON_MAYBE = 1e-10;
+    static auto constexpr WALK_SPEED = 10;
+    static auto constexpr VIEWPORT_LEFT = 319;
+    static auto constexpr VIEWPORT_TOP = 1;
+    static auto constexpr VIEWPORT_RIGHT = 638;
+    static auto constexpr VIEWPORT_BOTTOM = 200;
+    static auto constexpr VIEWPORT_HORIZON = 100;
+    static auto constexpr ROTATION_SPEED = ANGLE_6;
 
-        } // end for row
-
-    } // end Draw_2D_Map
-
-    /////////////////////////////////////////////////////////////////////////////
-
-    void Ray_Caster(long x, long y, long view_angle)
-    {
+    void Ray_Caster(long x, long y, long view_angle) {
         // This function casts out 320 rays from the viewer and builds up the video
         // display based on the intersections with the walls. The 320 rays are
         // cast in such a way that they all fit into a 60 degree field of view
@@ -388,582 +270,275 @@ void _rectangle(RectStyle style, int left, int top, int right, int bottom)  noex
         // edge that has a cell in it is recorded.  The intersection that has the
         // closer distance to the user is the one that is used to draw the bitmap.
         // the distance is used to compute the height of the "sliver" of texture
-        // or line that will be drawn on the screen
+        // or line that will be drawn on the screen        
 
-        // note: this function uses floating point (slow), no optimizations (slower)
-        // and finally it makes calls to Microsofts Graphics libraries (slowest!)
-        // however, writing it in this manner makes it many orders of magnitude
-        // easier to understand.
-
-        int rcolor;
-
-        long xray = 0,        // tracks the progress of a ray looking for Y interesctions
-            yray = 0,        // tracks the progress of a ray looking for X interesctions
-            next_y_cell,   // used to figure out the quadrant of the ray
-            next_x_cell,
-            cell_x,        // the current cell that the ray is in
-            cell_y,
-            x_bound,       // the next vertical and horizontal intersection point
-            y_bound,
-            xb_save,       // storage to record intersections cell boundaries
-            yb_save,
-            x_delta,       // the amount needed to move to get to the next cell
-            y_delta,       // position
-            ray,           // the current ray being cast 0-320
-            casting = 2,     // tracks the progress of the X and Y component of the ray
-            x_hit_type,    // records the block that was intersected, used to figure
-            y_hit_type,    // out which texture to use
-
-            top,           // used to compute the top and bottom of the sliver that
-            bottom;        // is drawn symetrically around the bisecting plane of the
-                           // screens vertical extents
-
-
-        float xi,           // used to track the x and y intersections
-            yi,
-            xi_save,      // used to save exact x and y intersection points
-            yi_save,
-            dist_x,       // the distance of the x and y ray intersections from
-            dist_y,       // the viewpoint
-            scale;        // the final scale to draw the "sliver" in
-
-      // S E C T I O N  1 /////////////////////////////////////////////////////////v
-
-      // initialization
-
-      // compute starting angle from player.  Field of view is 60 degrees, so
-      // subtract half of that current view angle
-
-        if ((view_angle -= ANGLE_30) < 0)
-        {
-            // wrap angle around
+         // S E C T I O N  1 /////////////////////////////////////////////////////////
+        // compute starting angle from player.  Field of view is 60 degrees, so subtract half of that from the current view angle
+        if ((view_angle -= ANGLE_30) < 0) { // wrap angle around           
             view_angle = ANGLE_360 + view_angle;
-        } // end if
+        }
 
-        rcolor = 1 + rand() % 14;
-
-        // loop through all 320 rays
-
-        // section 2
-
-        for (ray = 0; ray < 320; ray++)
-        {
-
-            // S E C T I O N  2 /////////////////////////////////////////////////////////
-
-                // compute first x intersection
-
-                // need to know which half plane we are casting from relative to Y axis
-
-            if (view_angle >= ANGLE_0 && view_angle < ANGLE_180)
-            {
-
+        // loop through all 320 rays        
+        for (int ray = 0; ray < 320; ray++) {
+            // SECTION 2 /////////////////////////////////////////////////////////
+            // compute first x intersection
+            // need to know which half plane we are casting from relative to Y axis
+            float xi;  // used to track the x and y intersections
+            int y_bound;  // the next vertical and horizontal intersection point    
+            int y_delta; // the amount needed to move to get to the next cell position
+            int next_y_cell; // used to figure out the quadrant of the ray
+            if (view_angle >= ANGLE_0 && view_angle < ANGLE_180) {
                 // compute first horizontal line that could be intersected with ray
                 // note: it will be above player
-
-                y_bound = CELL_Y_SIZE + CELL_Y_SIZE * (y / CELL_Y_SIZE);
-
-                // compute delta to get to next horizontal line
-
-                y_delta = CELL_Y_SIZE;
-
-                // based on first possible horizontal intersection line, compute X
-                // intercept, so that casting can begin
-
-                xi = inv_tan_table[view_angle] * (y_bound - y) + x;
-
-                // set cell delta
-
-                next_y_cell = 0;
-
-            } // end if upper half plane
-            else
-            {
-
+                y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT);// compute delta to get to next horizontal line                
+                y_delta = CELL_HEIGHT;
+                xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin
+                next_y_cell = 0; // set cell delta
+            }
+            else {
                 // compute first horizontal line that could be intersected with ray
                 // note: it will be below player
+                y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); // compute delta to get to next horizontal line                
+                y_delta = -CELL_HEIGHT;
+                xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
+                next_y_cell = -1; // set cell delta
+            }
 
-                y_bound = CELL_Y_SIZE * (y / CELL_Y_SIZE);
-
-                // compute delta to get to next horizontal line
-
-                y_delta = -CELL_Y_SIZE;
-
-                // based on first possible horizontal intersection line, compute X
-                // intercept, so that casting can begin
-
-                xi = inv_tan_table[view_angle] * (y_bound - y) + x;
-
-                // set cell delta
-
-                next_y_cell = -1;
-
-            } // end else lower half plane
-
-
-     // S E C T I O N  3 /////////////////////////////////////////////////////////
-
-         // compute first y intersection
-
-         // need to know which half plane we are casting from relative to X axis
-
-            if (view_angle < ANGLE_90 || view_angle >= ANGLE_270)
-            {
-
+            int x_bound;       // the next vertical and horizontal intersection point    
+            float yi;  // used to track the x and y intersections  
+            int x_delta; // the amount needed to move to get to the next cell position
+            int next_x_cell; // used to figure out the quadrant of the ray            
+            // SECTION 3 /////////////////////////////////////////////////////////
+            // compute first y intersection
+            // need to know which half plane we are casting from relative to X axis
+            if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) {
                 // compute first vertical line that could be intersected with ray
                 // note: it will be to the right of player
-
-                x_bound = CELL_X_SIZE + CELL_X_SIZE * (x / CELL_X_SIZE);
-
-                // compute delta to get to next vertical line
-
-                x_delta = CELL_X_SIZE;
-
-                // based on first possible vertical intersection line, compute Y
-                // intercept, so that casting can begin
-
-                yi = tan_table[view_angle] * (x_bound - x) + y;
-
-                // set cell delta
-
-                next_x_cell = 0;
-
-            } // end if right half plane
-            else
-            {
-
+                x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);
+                x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
+                yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
+                next_x_cell = 0; // set cell delta
+            }
+            else {
                 // compute first vertical line that could be intersected with ray
                 // note: it will be to the left of player
+                x_bound = CELL_WIDTH * (x / CELL_WIDTH);
+                x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
+                yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
+                next_x_cell = -1; // set cell delta
+            }
 
-                x_bound = CELL_X_SIZE * (x / CELL_X_SIZE);
-
-                // compute delta to get to next vertical line
-
-                x_delta = -CELL_X_SIZE;
-
-                // based on first possible vertical intersection line, compute Y
-                // intercept, so that casting can begin
-
-                yi = tan_table[view_angle] * (x_bound - x) + y;
-
-                // set cell delta
-
-                next_x_cell = -1;
-
-            } // end else right half plane
-
-     // begin cast
-
-            casting = 2;                // two rays to cast simultaneously
-            xray = yray = 0;                // reset intersection flags
-
-
-        // S E C T I O N  4 /////////////////////////////////////////////////////////
-
-            while (casting)
-            {
-
+            // SECTION 4 /////////////////////////////////////////////////////////
+            // begin cast
+            int casting = 2; // two rays to cast simultaneously
+            bool xray_intersection_found = false;
+            bool yray_intersection_found = false;
+            int xb_save; // storage to record intersections cell boundaries
+            int yb_save;
+            float xi_save = 0.0f; // used to save exact x and y intersection points
+            float yi_save = 0.0f;
+            float dist_x; // the distance of the x and y ray intersections from
+            float dist_y; // the viewpoint
+            while (casting) {
                 // continue casting each ray in parallel
-
-                if (xray != INTERSECTION_FOUND)
-                {
-
-                    // test for asymtotic ray
-
-                    // if (view_angle==ANGLE_90 || view_angle==ANGLE_270)
-
-                    if (fabs(y_step[view_angle]) == 0)
-                    {
-                        xray = INTERSECTION_FOUND;
+                if (!xray_intersection_found) {
+                    if (std::fabs(y_step[view_angle]) == 0) { // test for asymtotic ray      
+                        xray_intersection_found = true;
                         casting--;
                         dist_x = 1e+8;
-
-                    } // end if asymtotic ray
-
-                 // compute current map position to inspect
-
-                    cell_x = ((x_bound + next_x_cell) / CELL_X_SIZE);
-                    cell_y = (long)(yi / CELL_Y_SIZE);
+                    }
+                    // compute current map position to inspect
+                    int cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
+                    int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
 
                     // test if there is a block where the current x ray is intersecting
-
-                    if ((x_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x]) != 0)
-                    {
-                        // compute distance
-
-                        dist_x = (yi - y) * inv_sin_table[view_angle];
+                    const int x_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
+                    if (x_hit_type != 0) {
+                        dist_x = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
                         yi_save = yi;
                         xb_save = x_bound;
-
-                        // terminate X casting
-
-                        xray = INTERSECTION_FOUND;
+                        xray_intersection_found = true;
                         casting--;
+                    }
+                    else {
+                        yi += y_step[view_angle]; // compute next Y intercept
+                    }
+                }
 
-                    } // end if a hit
-                    else
-                    {
-                        // compute next Y intercept
-
-                        yi += y_step[view_angle];
-
-                    } // end else
-
-                } // end if x ray has intersected
-
-    // S E C T I O N  5 /////////////////////////////////////////////////////////
-
-                if (yray != INTERSECTION_FOUND)
-                {
-
-                    // test for asymtotic ray
-
-                    // if (view_angle==ANGLE_0 || view_angle==ANGLE_180)
-
-                    if (fabs(x_step[view_angle]) == 0)
-                    {
-                        yray = INTERSECTION_FOUND;
+                // SECTION 5 /////////////////////////////////////////////////////////
+                if (!yray_intersection_found) {
+                    if (std::fabs(x_step[view_angle]) == 0) { // test for asymtotic ray
+                        yray_intersection_found = true;
                         casting--;
-                        dist_y = 1e+8;
-
-                    } // end if asymtotic ray
-
-                 // compute current map position to inspect
-
-                    cell_x = (long)(xi / CELL_X_SIZE);
-                    cell_y = ((y_bound + next_y_cell) / CELL_Y_SIZE);
-
+                        dist_y = 1e+8; //TODO
+                    }
+                    // compute current map position to inspect
+                    int cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
+                    int cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
                     // test if there is a block where the current y ray is intersecting
-
-                    if ((y_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x]) != 0)
-                    {
-                        // compute distance
-
-                        dist_y = (xi - x) * inv_cos_table[view_angle];
+                    const int y_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
+                    if (y_hit_type != 0) {
+                        dist_y = (xi - x) * inv_cos_table[view_angle]; // compute distance
                         xi_save = xi;
                         yb_save = y_bound;
-
-                        // terminate Y casting
-
-                        yray = INTERSECTION_FOUND;
+                        yray_intersection_found = true;
                         casting--;
-
-                    } // end if a hit
-                    else
-                    {
-                        // compute next X intercept
-
-                        xi += x_step[view_angle];
-
-                    } // end else
-
-                } // end if y ray has intersected
-
-             // move to next possible intersection points
-
-
-                x_bound += x_delta;
+                    }
+                    else {
+                        xi += x_step[view_angle]; // compute next X intercept
+                    }
+                }
+                x_bound += x_delta; // move to next possible intersection points
                 y_bound += y_delta;
-
-
-                // _settextposition(38,40);
-                // printf("x_bound = %ld, y_bound = %ld    ",x_bound,y_bound);
-
-            } // end while not done
-
-
-   // S E C T I O N  6 /////////////////////////////////////////////////////////
-
-       // at this point, we know that the ray has succesfully hit both a
-       // vertical wall and a horizontal wall, so we need to see which one
-       // was closer and then render it
-
-       // note: latter we will replace the crude monochrome line with a sliver
-       // of texture, but this is good enough for now
-
-            if (dist_x < dist_y)
-            {
-
-                sline(x, y, (long)xb_save, (long)yi_save, rcolor);
-
-                // there was a vertical wall closer than the horizontal
-
-                // compute actual scale and multiply by view filter so that spherical
-                // distortion is cancelled
-
-                scale = cos_table[ray] * 15000 / (1e-10 + dist_x);
-
-                // compute top and bottom and do a very crude clip
-
-                if ((top = 100 - scale / 2) < 1)
-                    top = 1;
-
-                if ((bottom = top + scale) > 200)
-                    bottom = 200;
-
-                // draw wall sliver and place some dividers up
-
-                if (((long)yi_save) % CELL_Y_SIZE <= 1)
-                    _setcolor(15);
-                else
-                    _setcolor(10);
-
-                _moveto((int)(638 - ray), (int)top);
-                _lineto((int)(638 - ray), (int)bottom);
-
             }
-            else // must of hit a horizontal wall first
-            {
 
-                sline(x, y, (long)xi_save, (long)yb_save, rcolor);
+            // SECTION 6 /////////////////////////////////////////////////////////
+            // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one
+            // was closer and then render it
+            // note: later we will replace the crude monochrome line with a sliver of texture, but this is good enough for now            
+            float scale; // the final scale to draw the "sliver" in            
+            LutRegister color = LutRegister::LightGreen;
+            if (dist_x < dist_y) { // there was a vertical wall closer than the horizontal
+                sline(x, y, xb_save, yi_save, LutRegister::LightGreen);
+                scale = cos_table[ray] * 15000 / (EPSILON_MAYBE + dist_x); // compute actual scale and multiply by view filter so that spherical distortion is cancelled                 
+                if (static_cast<int>(yi_save) % CELL_HEIGHT > 1) {
+                    color = LutRegister::LightGreen;
+                } else {
+                    color = LutRegister::White; //draw divider between wall sections                
+                }
+            }
+            else { // must of hit a horizontal wall first
+                sline(x, y, xi_save, yb_save, LutRegister::DarkGreen);
+                scale = cos_table[ray] * 15000 / (EPSILON_MAYBE + dist_y); // compute actual scale and multiply by view filter so that spherical distortion is cancelled        
+                if (static_cast<int>(xi_save) % CELL_WIDTH > 1) {
+                    color = LutRegister::DarkGreen;
+                }
+                else {
+                    color = LutRegister::White; //draw divider between wall sections                
+                }                
+            }
+            // compute the top and bottom of the sliver (with crude clipping), which is drawn symmetrically around the viewport horizon. 
+            int top = Utils::clamp(VIEWPORT_HORIZON - static_cast<int>(scale / 2.0f), VIEWPORT_TOP, VIEWPORT_BOTTOM);
+            int bottom = Utils::clamp(static_cast<int>(top + scale), VIEWPORT_TOP, VIEWPORT_BOTTOM);            
+            _setcolor(color);
+            _moveto((MAX_X - ray), top);
+            _lineto((MAX_X - ray), bottom);
 
-                // compute actual scale and multiply by view filter so that spherical
-                // distortion is cancelled
-
-                scale = cos_table[ray] * 15000 / (1e-10 + dist_y);
-
-                // compute top and bottom and do a very crude clip
-
-                if ((top = 100 - scale / 2) < 1)
-                    top = 1;
-
-                if ((bottom = top + scale) > 200)
-                    bottom = 200;
-
-                // draw wall sliver and place some dividers up
-
-                if (((long)xi_save) % CELL_X_SIZE <= 1)
-                    _setcolor(15);
-                else
-                    _setcolor(2);
-
-
-                _moveto((int)(638 - ray), (int)top);
-                _lineto((int)(638 - ray), (int)bottom);
-
-            } // end else
-
-     // S E C T I O N  7 /////////////////////////////////////////////////////////
-
-         // cast next ray
-
-            if (++view_angle >= ANGLE_360)
-            {
-                // reset angle back to zero
-
-                view_angle = 0;
-
-            } // end if
-
-        } // end for ray
-
+            // SECTION 7 /////////////////////////////////////////////////////////
+            // cast next ray
+            if (++view_angle >= ANGLE_360) {
+                view_angle = 0; //reset angle back to zero
+            }
+        }
     } // end Ray_Caster
 
-// M A I N ///////////////////////////////////////////////////////////////////
+    void readInput() {
+        _input.update();
+    }
 
-void run(void)
-{
+    struct ViewPoint {
+        int x, y, angle = 0;
+        float dx = 0.0f;
+        float dy = 0.0f;
+    };
 
-    int done = 0;
-    long x, y, view_angle, x_cell, y_cell, x_sub_cell, y_sub_cell;
-    float dx, dy;
+    ViewPoint _viewPoint;
 
+    void clearWindow() {
+        _setcolor(LutRegister::Black);
+        _r.clear();
+        _setcolor(LutRegister::Black);
+        _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_TOP, VIEWPORT_RIGHT, VIEWPORT_HORIZON);
+        _setcolor(LutRegister::DarkGray);
+        _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_HORIZON, VIEWPORT_RIGHT, VIEWPORT_BOTTOM);
+        _setcolor(LutRegister::White);
+        _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around map
+    }
 
-    // seed random number genrerator
-
-    srand(13);
-
-    // set mode to 640x480 so we can fit a lot of info on the screen for
-    // educational purposes
-
-    //_setvideomode(_VRES16COLOR);
-
-  
-
-    // build all the lookuo tables
-
-    Build_Tables();
-        
-    // draw top view of world
-
-    Draw_2D_Map();
-
-    // draw window around view port
-
-    _setcolor(15);
-    _rectangle(RectStyle::OUTLINE, 318, 0, 639, 201);
-
-    x = 8 * 64 + 25;
-    y = 3 * 64 + 25;
-    view_angle = ANGLE_60;
-
-    // render initial view
-
-    Ray_Caster(x, y, view_angle);
-
-    // wait for user to press q to quit
-
-    while (!done)
-    {
-
-        // has keyboard been hit?       
-        if (_kbhit())
-        {
-            Draw_2D_Map();
-            // reset deltas
-
-            dx = dy = 0;
-
-            // clear viewport
-
-            _setcolor(0);
-            _rectangle(RectStyle::FILL, 319, 1, 638, 200);
-            _setcolor(8);
-            _rectangle(RectStyle::FILL, 319, 100, 638, 200);
-
-            // what is user doing
-
-            switch (_getch())
-            {
-            case '6':
-            {
-                if ((view_angle -= ANGLE_6) < ANGLE_0)
-                    view_angle = ANGLE_360;
-
-            } break;
-            case '4':
-            {
-                if ((view_angle += ANGLE_6) >= ANGLE_360)
-                    view_angle = ANGLE_0;
-
-            } break;
-
-
-            case '8':
-            {
-
-                // move player along view vector foward
-
-                dx = cos(6.28 * view_angle / ANGLE_360) * 10;
-                dy = sin(6.28 * view_angle / ANGLE_360) * 10;
-
-            } break;
-
-            case '2':
-            {
-                // move player along view vector backward
-
-                dx = -cos(6.28 * view_angle / ANGLE_360) * 10;
-                dy = -sin(6.28 * view_angle / ANGLE_360) * 10;
-
-                // test if player is bumping into a wall
-
-            } break;
-
-
-            case 'q': { done = 1; } break;
-
-            default:break;
-
-
-            } // end switch
-
-        // move player
-
-            x += dx;
-            y += dy;
-
-            // test if user has bumped into a wall i.e. test if there
-            // is a cell within the direction of motion, if so back up !
-
-            // compute cell position
-
-            x_cell = x / CELL_X_SIZE;
-            y_cell = y / CELL_Y_SIZE;
-
-            // compute position relative to cell
-
-            x_sub_cell = x % CELL_X_SIZE;
-            y_sub_cell = y % CELL_Y_SIZE;
-
-
-            // resolve motion into it's x and y components
-
-            if (dx > 0)
-            {
-                // moving right
-
-                if ((world[(WORLD_ROWS - 1) - y_cell][x_cell + 1] != 0) &&
-                    (x_sub_cell > (CELL_X_SIZE - OVERBOARD)))
-                {
-                    // back player up amount he steped over the line
-
-                    x -= (x_sub_cell - (CELL_X_SIZE - OVERBOARD));
-
-                } // end if need to back up
-
+    void updateViewPoint() {
+        _viewPoint.dx = 0.0f;
+        _viewPoint.dy = 0.0f;
+        if (_input.isKeyDown(SDL_SCANCODE_KP_6) || _input.isKeyDown(SDL_SCANCODE_RIGHT)) {
+            if ((_viewPoint.angle -= ROTATION_SPEED) < ANGLE_0) {
+                _viewPoint.angle = ANGLE_360;
             }
-            else
-            {
-                // moving left
-
-                if ((world[(WORLD_ROWS - 1) - y_cell][x_cell - 1] != 0) &&
-                    (x_sub_cell < (OVERBOARD)))
-                {
-                    // back player up amount he steped over the line
-
-                    x += (OVERBOARD - x_sub_cell);
-
-                } // end if need to back up
-
-            } // end else
-
-            if (dy > 0)
-            {
-                // moving up
-
-                if ((world[(WORLD_ROWS - 1) - (y_cell + 1)][x_cell] != 0) &&
-                    (y_sub_cell > (CELL_Y_SIZE - OVERBOARD)))
-                {
-                    // back player up amount he steped over the line
-
-                    y -= (y_sub_cell - (CELL_Y_SIZE - OVERBOARD));
-
-                } // end if need to back up
+        }
+        else if (_input.isKeyDown(SDL_SCANCODE_KP_4) || _input.isKeyDown(SDL_SCANCODE_LEFT)) {
+            if ((_viewPoint.angle += ROTATION_SPEED) >= ANGLE_360) {
+                _viewPoint.angle = ANGLE_0;
             }
-            else
-            {
-                // moving down
+        }
+        if (_input.isKeyDown(SDL_SCANCODE_KP_8) || _input.isKeyDown(SDL_SCANCODE_UP)) {
+            _viewPoint.dx = cos(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;     // move player along view vector foward
+            _viewPoint.dy = sin(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;
+        }
+        else if (_input.isKeyDown(SDL_SCANCODE_KP_2) || _input.isKeyDown(SDL_SCANCODE_DOWN)) {
+            _viewPoint.dx = -cos(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED; // move player along view vector backward
+            _viewPoint.dy = -sin(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;
+        }
+        if (_input.isKeyDown(SDL_SCANCODE_A)) { //strafe left
+          //TODO
+        }
+        else if (_input.isKeyDown(SDL_SCANCODE_A)) { //strafe right
+          //TODO
+        }
+        _viewPoint.x += _viewPoint.dx;
+        _viewPoint.y += _viewPoint.dy;
+    }
 
-                if ((world[(WORLD_ROWS - 1) - (y_cell - 1)][x_cell] != 0) &&
-                    (y_sub_cell < (OVERBOARD)))
-                {
-                    // back player up amount he steped over the line
+    void checkCollisions() {
+        // test if user has bumped into a wall i.e. test if there is a cell within the direction of motion, if so back up!                               
+        int x_cell = _viewPoint.x / CELL_WIDTH;
+        int y_cell = (WORLD_ROWS - 1) - (_viewPoint.y / CELL_HEIGHT);
+        int x_sub_cell = _viewPoint.x % CELL_WIDTH; // compute position within the cell
+        int y_sub_cell = _viewPoint.y % CELL_HEIGHT;
 
-                    y += (OVERBOARD - y_sub_cell);
+        if (_viewPoint.dx > 0 && isWall(x_cell + 1, y_cell)) {// moving right, towards a wall
+            if (x_sub_cell > (CELL_WIDTH - OVERBOARD)) {
+                _viewPoint.x -= (x_sub_cell - (CELL_WIDTH - OVERBOARD)); // back player up amount they stepped over the line
+            }
+        }
+        else if (_viewPoint.dx < 0 && isWall(x_cell - 1, y_cell)) {// moving left, towards a wall
+            if (x_sub_cell < (OVERBOARD)) {
+                _viewPoint.x += (OVERBOARD - x_sub_cell);
+            }
+        }
+        if (_viewPoint.dy > 0 && isWall(x_cell, y_cell - 1)) { // moving up, towards a wall
+            if (y_sub_cell > (CELL_HEIGHT - OVERBOARD)) {
+                _viewPoint.y -= (y_sub_cell - (CELL_HEIGHT - OVERBOARD));
+            }
+        }
+        else if (_viewPoint.dy < 0 && isWall(x_cell, y_cell + 1)) {// moving down            
+            if (y_sub_cell < (OVERBOARD)) {
+                _viewPoint.y += (OVERBOARD - y_sub_cell);
+            }
+        }
+    }
 
-                } // end if need to back up
+    inline const bool isWall(int x, int y) noexcept {
+        return (world[y][x] != 0);
+    }
 
-            } // end else
-
-            // render the view
-
-            Ray_Caster(x, y, view_angle);
-
-            // display status          
-
-            printf("\nPosition of player is (%ld,%ld)   ", x, y);
-            printf("\nView angle is %ld  ", (long)(360 * (float)view_angle / ANGLE_360));
-            printf("\nCurrent cell is (%ld,%ld)   ", x_cell, y_cell);
-            printf("\nRelative position within cell is (%ld,%ld)  ",
-                x_sub_cell, y_sub_cell);
+public:
+    Ray(const Renderer& r, InputManager& input) : _r(r), _input(input) {
+        _viewPoint.x = START_POS_X * CELL_WIDTH + CELL_WIDTH / 2;
+        _viewPoint.y = START_POS_Y * CELL_HEIGHT + CELL_HEIGHT / 2;
+        _viewPoint.angle = ANGLE_60;
+        Build_Tables();
+    }
+       
+    int run() {   
+        while (!_input.quitRequested()) {
+            readInput();
+            clearWindow();
+            updateViewPoint();
+            checkCollisions();            
+            Draw_2D_Map();            
+            Ray_Caster(_viewPoint.x, _viewPoint.y, _viewPoint.angle);
             _r.present();
-        }  // end if kbhit        
-        SDL_Delay(16);
-    } //end while
+            SDL_Delay(16);
+        }
+        return 0;
+    }
 
-// restore original mode
-
-    //_setvideomode(_DEFAULTMODE);
-
-} // end run
+};
