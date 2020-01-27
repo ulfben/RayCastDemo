@@ -14,6 +14,127 @@
 #include <string.h>
 //#include <graph.h>  // we'll use microsofts stuff for this progrom
 
+//depencies and a facade for the system calls the original code relied on.
+#include "SDLSystem.h"
+#include "Window.h"
+#include "Renderer.h"
+#include "InputManager.h"
+#include "Utils.h"
+namespace Config {
+    using namespace std::literals::string_view_literals;
+    static const std::string_view TITLE = "Ray Caster Demo"sv;
+    static const int WIN_WIDTH = 640;
+    static const int WIN_HEIGHT = 480;
+};
+SDLSystem _sdl;
+Window _window{ Config::TITLE, Config::WIN_WIDTH, Config::WIN_HEIGHT };
+Renderer _r{ _window };
+InputManager _input{};
+
+enum class RectStyle {
+    OUTLINE,
+    FILL
+};
+enum class LutRegister : size_t { //giving names to the old Windows <graph.h> color values
+    Black = 0,
+    DarkBlue = 1,
+    DarkGreen = 2,
+    DarkCyan = 3,
+    DarkRed = 4,
+    DarkMagenta = 5,
+    Brown = 6,
+    Gray = 7,
+    DarkGray = 8,
+    LightBlue = 9,
+    LightGreen = 10,
+    LightCyan = 11,
+    LightRed = 12,
+    LightMagenta = 13,
+    Yellow = 14,
+    White = 15
+};
+// declare SDL_Color values for each color in the original LUT
+static constexpr SDL_Color Black = { 0, 0, 0 };
+static constexpr SDL_Color DarkBlue = { 0, 0, 139 };
+static constexpr SDL_Color DarkGreen = { 0, 139, 0 };
+static constexpr SDL_Color DarkCyan = { 0, 139, 139 };
+static constexpr SDL_Color DarkRed = { 139, 0, 0 };
+static constexpr SDL_Color DarkMagenta = { 139, 0, 139 };
+static constexpr SDL_Color Brown = { 139, 69, 19 };
+static constexpr SDL_Color Gray = { 128, 128, 128 };
+static constexpr SDL_Color DarkGray = { 105, 105, 105 };
+static constexpr SDL_Color LightBlue = { 65, 105, 225 };
+static constexpr SDL_Color LightGreen = { 144, 238, 144 };
+static constexpr SDL_Color LightCyan = { 63, 255, 255 };
+static constexpr SDL_Color LightRed = { 255, 128, 128 };
+static constexpr SDL_Color LightMagenta = { 255, 128, 255 };
+static constexpr SDL_Color Yellow = { 255, 255, 0 };
+static constexpr SDL_Color White = { 255, 255, 255 };
+
+//Palette to translate between LUT value and SDL_Color
+static constexpr std::array<SDL_Color, 16> Palette{
+    Black,
+    DarkBlue,
+    DarkGreen,
+    DarkCyan,
+    DarkRed,
+    DarkMagenta,
+    Brown,
+    Gray,
+    DarkGray,
+    LightBlue,
+    LightGreen,
+    LightCyan,
+    LightRed,
+    LightMagenta,
+    Yellow,
+    White
+};
+
+int _lineStartX = 0; 
+int _lineStartY = 0;
+void _setcolor(int reg)  noexcept {
+    SDL_assert(reg > -1 && reg < Palette.size() && "_setColor (int): invalid color register specified");
+    const auto color = Palette[reg];
+    _r.setColor(color);
+}
+void _setcolor(LutRegister reg)  noexcept {
+    const auto index = Utils::to_underlying(reg);
+    SDL_assert(index < Palette.size() && "_setColor (reg): invalid color register specified");
+    const auto color = Palette[index];
+    _r.setColor(color);
+}
+void _setcolor(SDL_Color color)  noexcept {
+    _r.setColor(color);
+}
+void _moveto(int x1, int y1) { 
+    _lineStartX = x1;
+    _lineStartY = y1;
+}
+void _lineto(int x2, int y2)  noexcept {
+    _r.drawLine(_lineStartX, _lineStartY, x2, y2);
+}
+void _setpixel(int x, int y)  noexcept {
+    _r.drawPoint(x, y);
+}
+void _rectangle(RectStyle style, int left, int top, int right, int bottom)  noexcept {
+    SDL_Rect rect{ left, top, right - left, bottom - top };
+    if (style == RectStyle::FILL) {
+        _r.drawFilledRect(rect);
+    }
+    else {
+        _r.drawRect(rect);
+    }
+}
+// end facade
+
+
+
+
+
+
+
+
 // D E F I N E S /////////////////////////////////////////////////////////////
 
 // #define DEBUG 1
@@ -53,54 +174,22 @@
 #define WORLD_Y_SIZE  (WORLD_ROWS    * CELL_Y_SIZE)
 
 // G L O B A L S /////////////////////////////////////////////////////////////
-
-    unsigned int far* clock = (unsigned int far*)0x0000046C; // pointer to internal
-                                                              // 18.2 clicks/sec
-
-
-    // world map of nxn cells, each cell is 64x64 pixels
-
-    char far* world[WORLD_ROWS];       // pointer to matrix of cells that make up
-                                       // world
-
-    float far* tan_table;              // tangent tables used to compute initial
-    float far* inv_tan_table;          // intersections with ray
+   
+    float* tan_table;              // tangent tables used to compute initial
+    float* inv_tan_table;          // intersections with ray
 
 
-    float far* y_step;                 // x and y steps, used to find intersections
-    float far* x_step;                 // after initial one is found
+    float* y_step;                 // x and y steps, used to find intersections
+    float* x_step;                 // after initial one is found
 
 
-    float far* cos_table;              // used to cacell out fishbowl effect
+    float* cos_table;              // used to cacell out fishbowl effect
 
-    float far* inv_cos_table;          // used to compute distances by calculating
-    float far* inv_sin_table;          // the hypontenuse
+    float* inv_cos_table;          // used to compute distances by calculating
+    float* inv_sin_table;          // the hypontenuse
 
 
-    // F U N C T I O N S /////////////////////////////////////////////////////////
-
-    //////////////////////////////////////////////////////////////////////////////
-
-    void Timer(int clicks)
-    {
-        // this function uses the internal time keeper timer i.e. the one that goes
-        // at 18.2 clicks/sec to to a time delay.  You can find a 322 bit value of
-        // this timer at 0000:046Ch
-
-        unsigned int now;
-
-        // get current time
-
-        now = *clock;
-
-        // wait till time has gone past current time plus the amount we eanted to
-        // wait.  Note each click is approx. 55 milliseconds.
-
-        while (abs(*clock - now) < clicks) {}
-
-    } // end Timer
-
-    //////////////////////////////////////////////////////////////////////////////
+    // F U N C T I O N S /////////////////////////////////////////////////////////  
 
     void Build_Tables(void)
     {
@@ -112,26 +201,26 @@
 
         // tangent tables equivalent to slopes
 
-        tan_table = (float far*)_fmalloc(sizeof(float) * (ANGLE_360 + 1));
-        inv_tan_table = (float far*)_fmalloc(sizeof(float) * (ANGLE_360 + 1));
+        tan_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
+        inv_tan_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
 
         // step tables used to find next intersections, equivalent to slopes
         // times width and height of cell
 
-        y_step = (float far*)_fmalloc(sizeof(float) * (ANGLE_360 + 1));
-        x_step = (float far*)_fmalloc(sizeof(float) * (ANGLE_360 + 1));
+        y_step = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
+        x_step = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
 
 
         // cos table used to fix view distortion caused by caused by radial projection
 
-        cos_table = (float far*)_fmalloc(sizeof(float) * (ANGLE_360 + 1));
+        cos_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
 
 
         // 1/cos and 1/sin tables used to compute distance of intersection very
         // quickly
 
-        inv_cos_table = (float far*)_fmalloc(sizeof(float) * (ANGLE_360 + 1));
-        inv_sin_table = (float far*)_fmalloc(sizeof(float) * (ANGLE_360 + 1));
+        inv_cos_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
+        inv_sin_table = (float*)malloc(sizeof(float) * (ANGLE_360 + 1));
 
         // create tables, sit back for a sec!
 
@@ -191,73 +280,25 @@
 
     /////////////////////////////////////////////////////////////////////////////
 
-    void Allocate_World(void)
-    {
-        // this function allocates the memory for the world
-
-        int index;
-
-        // allocate each row
-
-        for (index = 0; index < WORLD_ROWS; index++)
-        {
-            world[index] = (char far*)_fmalloc(WORLD_COLUMNS + 1);
-
-        } // end for index
-
-    } // end Allocate_World
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-
-    void Load_World(char* file)
-    {
-        // this function opens the input file and loads the world data from it
-
-        FILE* fp, * fopen();
-        int index, row, column;
-        char buffer[WORLD_COLUMNS + 2], ch;
-
-        // open the file
-
-        if (!(fp = fopen(file, "r")))
-            return(0);
-
-        // load in the data
-
-        for (row = 0; row < WORLD_ROWS; row++)
-        {
-            // load in the next row
-
-            for (column = 0; column < WORLD_COLUMNS; column++)
-            {
-
-                while ((ch = getc(fp)) == 10) {} // filter out CR
-
-                // translate character to integer
-
-                if (ch == ' ')
-                    ch = 0;
-                else
-                    ch = ch - '0';
-
-                // insert data into world
-
-                world[row][column] = ch;
-
-            } // end for column
-
-        // process the row
-
-        } // end for row
-
-    // close the file
-
-        fclose(fp);
-
-        return(1);
-
-    } // end Load_World
+    // world map of nxn cells, each cell is 64x64 pixels
+    static constexpr char world[WORLD_ROWS][WORLD_COLUMNS] = {
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1},
+        {1,0,0,1,0,0,0,1,0,1,0,1,0,1,0,1},
+        {1,0,0,1,0,0,0,1,0,0,0,0,0,0,0,1},
+        {1,0,0,1,0,0,1,1,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,0,0,1,1,0,0,1,1,1,1,1,1,0,0,1},
+        {1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1},
+        {1,0,0,1,1,1,0,0,0,0,0,0,1,0,0,1},
+        {1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1},
+        {1,0,0,1,1,1,1,1,1,1,1,0,1,0,0,1},
+        {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+    };
 
     /////////////////////////////////////////////////////////////////////////////
 
@@ -280,7 +321,7 @@
 
     /////////////////////////////////////////////////////////////////////////////
 
-    splot(long x, long y, int color)
+    void splot(long x, long y, int color)
     {
         // used as a diagnostic function to draw a scaled point
 
@@ -317,7 +358,7 @@
                 {
 
                     _setcolor(15);
-                    _rectangle(_GBORDER, column * CELL_X_SIZE / 4, row * CELL_Y_SIZE / 4,
+                    _rectangle(RectStyle::OUTLINE, column * CELL_X_SIZE / 4, row * CELL_Y_SIZE / 4,
                         column * CELL_X_SIZE / 4 + CELL_X_SIZE / 4 - 1, row * CELL_Y_SIZE / 4 + CELL_Y_SIZE / 4 - 1);
 
                 }
@@ -325,7 +366,7 @@
                 {
 
                     _setcolor(2);
-                    _rectangle(_GFILLINTERIOR, column * CELL_X_SIZE / 4, row * CELL_Y_SIZE / 4,
+                    _rectangle(RectStyle::FILL, column * CELL_X_SIZE / 4, row * CELL_Y_SIZE / 4,
                         column * CELL_X_SIZE / 4 + CELL_X_SIZE / 4 - 1, row * CELL_Y_SIZE / 4 + CELL_Y_SIZE / 4 - 1);
 
                 }
@@ -720,10 +761,10 @@
 
 // M A I N ///////////////////////////////////////////////////////////////////
 
-void main(void)
+void run(void)
 {
 
-    int row, column, block, t, done = 0;
+    int done = 0;
     long x, y, view_angle, x_cell, y_cell, x_sub_cell, y_sub_cell;
     float dx, dy;
 
@@ -735,38 +776,22 @@ void main(void)
     // set mode to 640x480 so we can fit a lot of info on the screen for
     // educational purposes
 
-    _setvideomode(_VRES16COLOR);
+    //_setvideomode(_VRES16COLOR);
 
-    Allocate_World();
+  
 
     // build all the lookuo tables
 
     Build_Tables();
-
-    Load_World("raymap.dat");
-
+        
     // draw top view of world
 
     Draw_2D_Map();
 
-    // draw information prompts
-
-    _settextposition(18, 8);
-
-    printf("2-D Map View");
-
-    _settextposition(16, 54);
-
-    printf("3-D Projection");
-
-    _settextposition(35, 16);
-
-    printf("Use numeric keypad to move. Press Q to quit.");
-
     // draw window around view port
 
     _setcolor(15);
-    _rectangle(_GBORDER, 318, 0, 639, 201);
+    _rectangle(RectStyle::OUTLINE, 318, 0, 639, 201);
 
     x = 8 * 64 + 25;
     y = 3 * 64 + 25;
@@ -781,11 +806,10 @@ void main(void)
     while (!done)
     {
 
-        // has keyboard been hit?
-
-        if (kbhit())
+        // has keyboard been hit?       
+        if (_kbhit())
         {
-
+            Draw_2D_Map();
             // reset deltas
 
             dx = dy = 0;
@@ -793,13 +817,13 @@ void main(void)
             // clear viewport
 
             _setcolor(0);
-            _rectangle(_GFILLINTERIOR, 319, 1, 638, 200);
+            _rectangle(RectStyle::FILL, 319, 1, 638, 200);
             _setcolor(8);
-            _rectangle(_GFILLINTERIOR, 319, 100, 638, 200);
+            _rectangle(RectStyle::FILL, 319, 100, 638, 200);
 
             // what is user doing
 
-            switch (getch())
+            switch (_getch())
             {
             case '6':
             {
@@ -926,22 +950,20 @@ void main(void)
 
             Ray_Caster(x, y, view_angle);
 
-            // display status
-
-            _settextposition(20, 1);
+            // display status          
 
             printf("\nPosition of player is (%ld,%ld)   ", x, y);
             printf("\nView angle is %ld  ", (long)(360 * (float)view_angle / ANGLE_360));
             printf("\nCurrent cell is (%ld,%ld)   ", x_cell, y_cell);
             printf("\nRelative position within cell is (%ld,%ld)  ",
                 x_sub_cell, y_sub_cell);
-
-        }  // end if kbhit
-
+            _r.present();
+        }  // end if kbhit        
+        SDL_Delay(16);
     } //end while
 
 // restore original mode
 
-    _setvideomode(_DEFAULTMODE);
+    //_setvideomode(_DEFAULTMODE);
 
-} // end main
+} // end run

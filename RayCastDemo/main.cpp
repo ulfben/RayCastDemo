@@ -1,29 +1,17 @@
 // RayCastDemo.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 #define SDL_MAIN_HANDLED
-#include "src/SDLSystem.h"
 #include <memory>
 #include <iostream>
 #include <string_view>
-#include "src/Renderer.h"
-#include "src/Window.h"
-#include "src/InputManager.h"
+#include "src/SDLex.h"
 #include "src/Ray.h"
-namespace Config {
-	using namespace std::literals::string_view_literals;
-	static const std::string_view TITLE = "Ray Caster Demo (3rd iteration)"sv;	
-	static const int WIN_WIDTH = 640;	
-	static const int WIN_HEIGHT = 480;		
-};
+
 
 int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
-	try {
-		SDLSystem _sdl;
-		Window _window{ Config::TITLE, Config::WIN_WIDTH, Config::WIN_HEIGHT };
-		Renderer _r{ _window };	
-		InputManager _input{};
-		Ray ray{ _r, _input };
-		return ray.run();			
+	try {				
+		run();
+		return EXIT_SUCCESS;
 	}
 	catch (const SDLInitError & e) {
 		std::cerr << "SDL initialization error: " << e.what() << std::endl;
