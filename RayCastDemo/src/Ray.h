@@ -10,7 +10,11 @@ class Ray {
         OUTLINE,
         FILL
     };
-    //giving names to the old Windows <graph.h> color values
+    struct ViewPoint {
+        int x = 0, y = 0, angle = 0;
+        float dx = 0.0f, dy = 0.0f;        
+    };
+    
     //declare SDL_Color values for each color in the original LUT
     static constexpr SDL_Color Black = { 0, 0, 0 };
     static constexpr SDL_Color DarkBlue = { 0, 0, 139 };
@@ -30,32 +34,21 @@ class Ray {
     static constexpr SDL_Color White = { 255, 255, 255 };
     //indexed palette to translate between original LUT value and SDL_Color
     static constexpr std::array<SDL_Color, 16> Palette{
-        Black,
-        DarkBlue,
-        DarkGreen,
-        DarkCyan,
-        DarkRed,
-        DarkMagenta,
-        Brown,
-        Gray,
-        DarkGray,
-        LightBlue,
-        LightGreen,
-        LightCyan,
-        LightRed,
-        LightMagenta,
-        Yellow,
-        White
+        Black, DarkBlue, DarkGreen, DarkCyan,       //0, 1, 2, 3
+        DarkRed, DarkMagenta, Brown, Gray,          //4, 5, 6, 7
+        DarkGray, LightBlue, LightGreen, LightCyan, //8, 9, 10, 11
+        LightRed, LightMagenta, Yellow, White       //12, 13, 14, 15
     };
 
     const Renderer& _r;
-    InputManager& _input;
+    InputManager& _input;    
+    ViewPoint _viewPoint;
 
     int _x1 = 0;
     int _y1 = 0;
-    void _setcolor(int reg) const noexcept {
-        SDL_assert(reg > -1 && reg < Palette.size() && "_setColor (int): invalid color register specified");
-        const auto color = Palette[reg];
+    void _setcolor(int lutIndex) const noexcept {
+        SDL_assert(lutIndex > -1 && lutIndex < Palette.size() && "_setColor (int): invalid LUT color index specified, must be 0-15");
+        const auto color = Palette[lutIndex];
         _r.setColor(color);
     }
     void _setcolor(const SDL_Color& color) const noexcept {
@@ -81,22 +74,14 @@ class Ray {
         }
     }
 
-    static constexpr auto ANGLE_0 = 0;
-    static constexpr auto ANGLE_1 = 5;
-    static constexpr auto ANGLE_2 = 10;
-    static constexpr auto ANGLE_4 = 20;
-    static constexpr auto ANGLE_5 = 25;
-    static constexpr auto ANGLE_6 = 30;
+    static constexpr auto ANGLE_0 = 0; 
+    static constexpr auto ANGLE_5 = 25;    
     static constexpr auto ANGLE_15 = 80;
     static constexpr auto ANGLE_30 = 160;
-    static constexpr auto ANGLE_45 = 240;
-    static constexpr auto ANGLE_60 = 320;
-    static constexpr auto ANGLE_90 = 480;
-    static constexpr auto ANGLE_135 = 720;
-    static constexpr auto ANGLE_180 = 960;
-    static constexpr auto ANGLE_225 = 1200;
-    static constexpr auto ANGLE_270 = 1440;
-    static constexpr auto ANGLE_315 = 1680;
+    static constexpr auto ANGLE_45 = 240;    
+    static constexpr auto ANGLE_90 = 480;    
+    static constexpr auto ANGLE_180 = 960;    
+    static constexpr auto ANGLE_270 = 1440;    
     static constexpr auto ANGLE_360 = 1920;
 
     static constexpr auto RAY_COUNT = 320;
@@ -118,8 +103,10 @@ class Ray {
     static auto constexpr VIEWPORT_RIGHT = 638;
     static auto constexpr VIEWPORT_BOTTOM = 200;
     static auto constexpr VIEWPORT_HORIZON = 100;
-    static auto constexpr ROTATION_SPEED = ANGLE_6;
-    
+    static auto constexpr ROTATION_SPEED = ANGLE_5;
+    static constexpr auto MAP_SCALE_FACTOR = 4;
+    static constexpr auto ORIG_Y = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
+
     static constexpr auto DUNNO = 3.272e-4f;
     static constexpr auto EPSILON_MAYBE = 1e-10f;
     static auto constexpr A_SIZE_MAYBE = 15000.0f;
@@ -193,8 +180,6 @@ class Ray {
         }
     }
 
-    static constexpr auto MAP_SCALE_FACTOR = 4;
-    static constexpr auto ORIG_Y = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
     void sline(int x1, int y1, int x2, int y2, const SDL_Color& color) noexcept {
         // used a a diagnostic function to draw a scaled line
         x1 = x1 / MAP_SCALE_FACTOR;
@@ -205,6 +190,7 @@ class Ray {
         _moveto(x1, y1);
         _lineto(x2, y2);
     }
+
     void splot(int x, int y, const SDL_Color& color) const noexcept{
         // used as a diagnostic function to draw a scaled point
         x = x / MAP_SCALE_FACTOR;
@@ -237,9 +223,7 @@ class Ray {
             }
         }
     }
-
-    
-
+        
     void Ray_Caster(int x, int y, int view_angle) {
         // This function casts out 320 rays from the viewer and builds up the video
         // display based on the intersections with the walls. The 320 rays are
@@ -404,19 +388,7 @@ class Ray {
             }
         }
     } // end Ray_Caster
-
-    void readInput() {
-        _input.update();
-    }
-
-    struct ViewPoint {
-        int x = 0, y = 0, angle = 0;
-        float dx = 0.0f;
-        float dy = 0.0f;
-    };
-
-    ViewPoint _viewPoint;
-
+      
     void clearWindow() {
         _setcolor(Black);
         _r.clear();
@@ -444,11 +416,11 @@ class Ray {
         if (_input.isKeyDown(SDL_SCANCODE_KP_8) || _input.isKeyDown(SDL_SCANCODE_UP)) {
             _viewPoint.dx = cos(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;     // move player along view vector foward
             _viewPoint.dy = sin(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;
-        }
+        } 
         else if (_input.isKeyDown(SDL_SCANCODE_KP_2) || _input.isKeyDown(SDL_SCANCODE_DOWN)) {
             _viewPoint.dx = -cos(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED; // move player along view vector backward
             _viewPoint.dy = -sin(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;
-        }
+        }       
         if (_input.isKeyDown(SDL_SCANCODE_A)) { //strafe left
           //TODO
         }
@@ -494,13 +466,13 @@ public:
     Ray(const Renderer& r, InputManager& input) : _r(r), _input(input) {
         _viewPoint.x = START_POS_X * CELL_WIDTH + CELL_WIDTH / 2;
         _viewPoint.y = START_POS_Y * CELL_HEIGHT + CELL_HEIGHT / 2;
-        _viewPoint.angle = ANGLE_60;
+        _viewPoint.angle = ANGLE_45;
         Build_Tables();
     }
        
     int run() {   
         while (!_input.quitRequested()) {
-            readInput();
+            _input.update();
             clearWindow();
             updateViewPoint();
             checkCollisions();            
