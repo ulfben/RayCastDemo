@@ -37,7 +37,7 @@ class Ray {
         Black, DarkBlue, DarkGreen, DarkCyan,       //0, 1, 2, 3
         DarkRed, DarkMagenta, Brown, Gray,          //4, 5, 6, 7
         DarkGray, LightBlue, LightGreen, LightCyan, //8, 9, 10, 11
-        LightRed, LightMagenta, Yellow, White       //12, 13, 14, 15
+        LightRed, LightMagenta, Yellow, White       //12, 13, 14, 15 
     };
 
     const Renderer& _r;
