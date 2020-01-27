@@ -60,9 +60,4 @@
       <Filter>Source Files\SDLex</Filter>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <Text Include="changelog.txt">
-      <Filter>Resource Files</Filter>
-    </Text>
-  </ItemGroup>
 </Project>
