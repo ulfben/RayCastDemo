@@ -66,3 +66,6 @@ Revision 3:
 - simplify checkCollision with a "bool isWall(x, y)"-helper function
 - add utily "clamp" to get rid of repeated if/else statements
 
+Revision 4: 
+- add utilities "wrap" to get rid of repeated if/else statements
+- (declare and calculate currently implicit hard-coded settings: resolution, FOV, ray count etc)
