@@ -1,35 +1,17 @@
 #pragma once
 #include <array>
-#include <cmath>
+
 #include "Renderer.h"
 #include "InputManager.h"
 #include "SDLSystem.h"
 #include "Utils.h"
-
 class Ray {
     enum class RectStyle {
         OUTLINE,
         FILL
     };
-    enum class LutRegister : size_t { //giving names to the old Windows <graph.h> color values
-        Black = 0,
-        DarkBlue = 1,
-        DarkGreen = 2,
-        DarkCyan = 3,
-        DarkRed = 4,
-        DarkMagenta = 5,
-        Brown = 6,
-        Gray = 7,
-        DarkGray = 8,
-        LightBlue = 9,
-        LightGreen = 10,
-        LightCyan = 11,
-        LightRed = 12,
-        LightMagenta = 13,
-        Yellow = 14,
-        White = 15
-    };
-    // declare SDL_Color values for each color in the original LUT
+    //giving names to the old Windows <graph.h> color values
+    //declare SDL_Color values for each color in the original LUT
     static constexpr SDL_Color Black = { 0, 0, 0 };
     static constexpr SDL_Color DarkBlue = { 0, 0, 139 };
     static constexpr SDL_Color DarkGreen = { 0, 139, 0 };
@@ -46,8 +28,7 @@ class Ray {
     static constexpr SDL_Color LightMagenta = { 255, 128, 255 };
     static constexpr SDL_Color Yellow = { 255, 255, 0 };
     static constexpr SDL_Color White = { 255, 255, 255 };
-
-    //Palette to translate between LUT value and SDL_Color
+    //indexed palette to translate between original LUT value and SDL_Color
     static constexpr std::array<SDL_Color, 16> Palette{
         Black,
         DarkBlue,
@@ -77,16 +58,10 @@ class Ray {
         const auto color = Palette[reg];
         _r.setColor(color);
     }
-    void _setcolor(LutRegister reg) const noexcept {
-        const auto index = Utils::to_underlying(reg);
-        SDL_assert(index < Palette.size() && "_setColor (reg): invalid color register specified");
-        const auto color = Palette[index];
+    void _setcolor(const SDL_Color& color) const noexcept {
         _r.setColor(color);
     }
-    void _setcolor(SDL_Color color) const noexcept {
-        _r.setColor(color);
-    }
-    void _moveto(int x1, int y1) { //TODO: const correctness
+    void _moveto(int x1, int y1) noexcept { //TODO: const correctness
         _x1 = x1;
         _y1 = y1;
     }
@@ -124,19 +99,33 @@ class Ray {
     static constexpr auto ANGLE_315 = 1680;
     static constexpr auto ANGLE_360 = 1920;
 
+    static constexpr auto RAY_COUNT = 320;
     static constexpr auto WORLD_ROWS = 16; // number of rows in the game world
     static constexpr auto WORLD_COLUMNS = 16; // number of columns in the game world
     static constexpr auto CELL_WIDTH = 64; // size of a cell in the gamw world
     static constexpr auto CELL_HEIGHT = 64;
     static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
     static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);
-    static constexpr auto OVERBOARD = 48; // the absolute closest a player can get to a wall
+    static constexpr auto OVERBOARD = 32; // the absolute closest a player can get to a wall
     static constexpr auto START_POS_X = 8;
     static constexpr auto START_POS_Y = 3;
-    static constexpr auto DUNNO = 3.272e-4f;
     static constexpr auto TWO_PI = 2.0f * 3.141592654f;
+    static constexpr auto MAX_X = 638; //how far to the right we can draw.
+    static constexpr auto MIN_X = 2; //how far to the left we can draw.
+    static auto constexpr WALK_SPEED = 10;
+    static auto constexpr VIEWPORT_LEFT = 319;
+    static auto constexpr VIEWPORT_TOP = 1;
+    static auto constexpr VIEWPORT_RIGHT = 638;
+    static auto constexpr VIEWPORT_BOTTOM = 200;
+    static auto constexpr VIEWPORT_HORIZON = 100;
+    static auto constexpr ROTATION_SPEED = ANGLE_6;
+    
+    static constexpr auto DUNNO = 3.272e-4f;
+    static constexpr auto EPSILON_MAYBE = 1e-10f;
+    static auto constexpr A_SIZE_MAYBE = 15000.0f;
+    static constexpr auto ASYMTOTIC_DISTANCE_VALUE = 1e+8f;
 
-    // world map of nxn cells, each cell is 64x64 pixels
+    // world map, each cell is 64x64 pixels
     static constexpr char world[WORLD_ROWS][WORLD_COLUMNS] = {
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
@@ -172,7 +161,7 @@ class Ray {
     std::array<float, ANGLE_360 + 1> inv_cos_table; // used to compute distances by calculating
     std::array<float, ANGLE_360 + 1> inv_sin_table; // the hypontenuse       
 
-    void Build_Tables(void) noexcept {
+    void Build_Tables() noexcept {
         for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {
             const float rad_angle = DUNNO + ang * TWO_PI / ANGLE_360;
             tan_table[ang] = std::tanf(rad_angle);
@@ -199,37 +188,35 @@ class Ray {
         // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.  Without this we would see a fishbowl effect
         for (int ang = -ANGLE_30; ang <= ANGLE_30; ang++) {
             const float rad_angle = DUNNO + ang * TWO_PI / ANGLE_360;
-            const size_t index = ang + ANGLE_30;
+            const int index = ang + ANGLE_30;
             cos_table[index] = 1.0f / std::cos(rad_angle);
         }
     }
 
-    static constexpr auto ORIG_Y = 256;
-    static constexpr auto SCALE_FACTOR = 4;
-    void sline(int x1, int y1, int x2, int y2, LutRegister color) {
-        // used a a diagnostic function to draw a scaled line
-        x1 = x1 / SCALE_FACTOR;
-        y1 = ORIG_Y - (y1 / SCALE_FACTOR);
-        x2 = x2 / SCALE_FACTOR;
-        y2 = ORIG_Y - (y2 / SCALE_FACTOR);
-        _setcolor(color);
-        _moveto((int)x1, (int)y1);
-        _lineto((int)x2, (int)y2);
-
-    }
-    void splot(int x, int y, LutRegister color) {
-        // used as a diagnostic function to draw a scaled point
-        x = x / SCALE_FACTOR;
-        y = ORIG_Y - (y / SCALE_FACTOR);
-        _setcolor(color);
-        _setpixel((int)x, (int)y);
-        _setpixel((int)x + 1, (int)y);
-        _setpixel((int)x, (int)y + 1);
-        _setpixel((int)x + 1, (int)y + 1);
-    }
-
     static constexpr auto MAP_SCALE_FACTOR = 4;
-    void Draw_2D_Map(void) const noexcept {
+    static constexpr auto ORIG_Y = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
+    void sline(int x1, int y1, int x2, int y2, const SDL_Color& color) noexcept {
+        // used a a diagnostic function to draw a scaled line
+        x1 = x1 / MAP_SCALE_FACTOR;
+        y1 = ORIG_Y - (y1 / MAP_SCALE_FACTOR);
+        x2 = x2 / MAP_SCALE_FACTOR;
+        y2 = ORIG_Y - (y2 / MAP_SCALE_FACTOR);
+        _setcolor(color);
+        _moveto(x1, y1);
+        _lineto(x2, y2);
+    }
+    void splot(int x, int y, const SDL_Color& color) const noexcept{
+        // used as a diagnostic function to draw a scaled point
+        x = x / MAP_SCALE_FACTOR;
+        y = ORIG_Y - (y / MAP_SCALE_FACTOR);
+        _setcolor(color);
+        _setpixel(x, y);
+        _setpixel(x + 1, y);
+        _setpixel(x, y + 1);
+        _setpixel(x + 1, y + 1);
+    }
+
+    void Draw_2D_Map() const noexcept {
         static constexpr auto SCALED_CELL_WIDTH = CELL_WIDTH / MAP_SCALE_FACTOR;
         static constexpr auto SCALED_CELL_HEIGHT = CELL_HEIGHT / MAP_SCALE_FACTOR;
         for (int row = 0; row < WORLD_ROWS; row++) {
@@ -240,29 +227,20 @@ class Ray {
                 const int bottom = top + SCALED_CELL_HEIGHT - 1;
                 const int block = world[row][column];
                 if (block == 0) {
-                    _setcolor(LutRegister::White);
+                    _setcolor(White);
                     _rectangle(RectStyle::OUTLINE, left, top, right, bottom);
                 }
                 else {
-                    _setcolor(LutRegister::DarkGreen);
+                    _setcolor(DarkGreen);
                     _rectangle(RectStyle::FILL, left, top, right, bottom);
                 }
             }
         }
     }
 
-    static constexpr auto MAX_X = 638; //how far to the right we can draw.
-    static constexpr auto MIN_X = 2; //how far to the left we can draw.
-    static constexpr auto EPSILON_MAYBE = 1e-10;
-    static auto constexpr WALK_SPEED = 10;
-    static auto constexpr VIEWPORT_LEFT = 319;
-    static auto constexpr VIEWPORT_TOP = 1;
-    static auto constexpr VIEWPORT_RIGHT = 638;
-    static auto constexpr VIEWPORT_BOTTOM = 200;
-    static auto constexpr VIEWPORT_HORIZON = 100;
-    static auto constexpr ROTATION_SPEED = ANGLE_6;
+    
 
-    void Ray_Caster(long x, long y, long view_angle) {
+    void Ray_Caster(int x, int y, int view_angle) {
         // This function casts out 320 rays from the viewer and builds up the video
         // display based on the intersections with the walls. The 320 rays are
         // cast in such a way that they all fit into a 60 degree field of view
@@ -272,14 +250,12 @@ class Ray {
         // the distance is used to compute the height of the "sliver" of texture
         // or line that will be drawn on the screen        
 
-         // S E C T I O N  1 /////////////////////////////////////////////////////////
+         // SECTION 1 /////////////////////////////////////////////////////////
         // compute starting angle from player.  Field of view is 60 degrees, so subtract half of that from the current view angle
-        if ((view_angle -= ANGLE_30) < 0) { // wrap angle around           
-            view_angle = ANGLE_360 + view_angle;
+        if ((view_angle -= ANGLE_30) < 0){
+            view_angle = ANGLE_360 + view_angle; // wrap angle around
         }
-
-        // loop through all 320 rays        
-        for (int ray = 0; ray < 320; ray++) {
+        for (int ray = 0; ray < RAY_COUNT; ray++) {
             // SECTION 2 /////////////////////////////////////////////////////////
             // compute first x intersection
             // need to know which half plane we are casting from relative to Y axis
@@ -333,19 +309,19 @@ class Ray {
             int casting = 2; // two rays to cast simultaneously
             bool xray_intersection_found = false;
             bool yray_intersection_found = false;
-            int xb_save; // storage to record intersections cell boundaries
-            int yb_save;
-            float xi_save = 0.0f; // used to save exact x and y intersection points
-            float yi_save = 0.0f;
-            float dist_x; // the distance of the x and y ray intersections from
-            float dist_y; // the viewpoint
+            int xb_save = 0; // storage to record intersections cell boundaries
+            int yb_save = 0;
+            int xi_save = 0; // used to save exact x and y intersection points
+            int yi_save = 0;
+            float dist_x = 0.0f; // the distance of the x and y ray intersections from
+            float dist_y = 0.0f; // the viewpoint
             while (casting) {
                 // continue casting each ray in parallel
                 if (!xray_intersection_found) {
                     if (std::fabs(y_step[view_angle]) == 0) { // test for asymtotic ray      
                         xray_intersection_found = true;
                         casting--;
-                        dist_x = 1e+8;
+                        dist_x = ASYMTOTIC_DISTANCE_VALUE;
                     }
                     // compute current map position to inspect
                     int cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
@@ -355,12 +331,11 @@ class Ray {
                     const int x_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
                     if (x_hit_type != 0) {
                         dist_x = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
-                        yi_save = yi;
+                        yi_save = static_cast<int>(yi);
                         xb_save = x_bound;
                         xray_intersection_found = true;
                         casting--;
-                    }
-                    else {
+                    } else {
                         yi += y_step[view_angle]; // compute next Y intercept
                     }
                 }
@@ -370,7 +345,7 @@ class Ray {
                     if (std::fabs(x_step[view_angle]) == 0) { // test for asymtotic ray
                         yray_intersection_found = true;
                         casting--;
-                        dist_y = 1e+8; //TODO
+                        dist_y = ASYMTOTIC_DISTANCE_VALUE;
                     }
                     // compute current map position to inspect
                     int cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
@@ -379,12 +354,11 @@ class Ray {
                     const int y_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
                     if (y_hit_type != 0) {
                         dist_y = (xi - x) * inv_cos_table[view_angle]; // compute distance
-                        xi_save = xi;
+                        xi_save = static_cast<int>(xi);
                         yb_save = y_bound;
                         yray_intersection_found = true;
                         casting--;
-                    }
-                    else {
+                    } else {
                         xi += x_step[view_angle]; // compute next X intercept
                     }
                 }
@@ -397,24 +371,24 @@ class Ray {
             // was closer and then render it
             // note: later we will replace the crude monochrome line with a sliver of texture, but this is good enough for now            
             float scale; // the final scale to draw the "sliver" in            
-            LutRegister color = LutRegister::LightGreen;
+            SDL_Color color = LightGreen;
             if (dist_x < dist_y) { // there was a vertical wall closer than the horizontal
-                sline(x, y, xb_save, yi_save, LutRegister::LightGreen);
-                scale = cos_table[ray] * 15000 / (EPSILON_MAYBE + dist_x); // compute actual scale and multiply by view filter so that spherical distortion is cancelled                 
-                if (static_cast<int>(yi_save) % CELL_HEIGHT > 1) {
-                    color = LutRegister::LightGreen;
+                sline(x, y, xb_save, yi_save, LightGreen);
+                scale = cos_table[ray] * A_SIZE_MAYBE / (EPSILON_MAYBE + dist_x); // compute actual scale and multiply by view filter so that spherical distortion is cancelled                 
+                if (yi_save % CELL_HEIGHT > 1) {
+                    color = LightGreen;
                 } else {
-                    color = LutRegister::White; //draw divider between wall sections                
+                    color = White; //draw divider between wall sections                
                 }
             }
-            else { // must of hit a horizontal wall first
-                sline(x, y, xi_save, yb_save, LutRegister::DarkGreen);
-                scale = cos_table[ray] * 15000 / (EPSILON_MAYBE + dist_y); // compute actual scale and multiply by view filter so that spherical distortion is cancelled        
-                if (static_cast<int>(xi_save) % CELL_WIDTH > 1) {
-                    color = LutRegister::DarkGreen;
+            else { // must have hit a horizontal wall first
+                sline(x, y, xi_save, yb_save, DarkGreen);
+                scale = cos_table[ray] * A_SIZE_MAYBE / (EPSILON_MAYBE + dist_y); // compute actual scale and multiply by view filter so that spherical distortion is cancelled        
+                if (xi_save % CELL_WIDTH > 1) {
+                    color = DarkGreen;
                 }
                 else {
-                    color = LutRegister::White; //draw divider between wall sections                
+                    color = White; //draw divider between wall sections                
                 }                
             }
             // compute the top and bottom of the sliver (with crude clipping), which is drawn symmetrically around the viewport horizon. 
@@ -424,10 +398,9 @@ class Ray {
             _moveto((MAX_X - ray), top);
             _lineto((MAX_X - ray), bottom);
 
-            // SECTION 7 /////////////////////////////////////////////////////////
-            // cast next ray
-            if (++view_angle >= ANGLE_360) {
-                view_angle = 0; //reset angle back to zero
+            //move on to next ray
+            if (++view_angle >= ANGLE_360){
+                view_angle = 0;// reset angle back to zero
             }
         }
     } // end Ray_Caster
@@ -437,7 +410,7 @@ class Ray {
     }
 
     struct ViewPoint {
-        int x, y, angle = 0;
+        int x = 0, y = 0, angle = 0;
         float dx = 0.0f;
         float dy = 0.0f;
     };
@@ -445,13 +418,13 @@ class Ray {
     ViewPoint _viewPoint;
 
     void clearWindow() {
-        _setcolor(LutRegister::Black);
+        _setcolor(Black);
         _r.clear();
-        _setcolor(LutRegister::Black);
+        _setcolor(Gray);
         _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_TOP, VIEWPORT_RIGHT, VIEWPORT_HORIZON);
-        _setcolor(LutRegister::DarkGray);
+        _setcolor(Brown);
         _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_HORIZON, VIEWPORT_RIGHT, VIEWPORT_BOTTOM);
-        _setcolor(LutRegister::White);
+        _setcolor(White);
         _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around map
     }
 
@@ -482,8 +455,8 @@ class Ray {
         else if (_input.isKeyDown(SDL_SCANCODE_A)) { //strafe right
           //TODO
         }
-        _viewPoint.x += _viewPoint.dx;
-        _viewPoint.y += _viewPoint.dy;
+        _viewPoint.x += static_cast<int>(_viewPoint.dx);
+        _viewPoint.y += static_cast<int>(_viewPoint.dy);
     }
 
     void checkCollisions() {
@@ -497,8 +470,7 @@ class Ray {
             if (x_sub_cell > (CELL_WIDTH - OVERBOARD)) {
                 _viewPoint.x -= (x_sub_cell - (CELL_WIDTH - OVERBOARD)); // back player up amount they stepped over the line
             }
-        }
-        else if (_viewPoint.dx < 0 && isWall(x_cell - 1, y_cell)) {// moving left, towards a wall
+        } else if (_viewPoint.dx < 0 && isWall(x_cell - 1, y_cell)) {// moving left, towards a wall
             if (x_sub_cell < (OVERBOARD)) {
                 _viewPoint.x += (OVERBOARD - x_sub_cell);
             }
@@ -507,8 +479,7 @@ class Ray {
             if (y_sub_cell > (CELL_HEIGHT - OVERBOARD)) {
                 _viewPoint.y -= (y_sub_cell - (CELL_HEIGHT - OVERBOARD));
             }
-        }
-        else if (_viewPoint.dy < 0 && isWall(x_cell, y_cell + 1)) {// moving down            
+        } else if (_viewPoint.dy < 0 && isWall(x_cell, y_cell + 1)) {// moving down            
             if (y_sub_cell < (OVERBOARD)) {
                 _viewPoint.y += (OVERBOARD - y_sub_cell);
             }
@@ -540,5 +511,4 @@ public:
         }
         return 0;
     }
-
 };

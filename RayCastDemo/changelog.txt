@@ -67,5 +67,8 @@ Revision 3:
 - add utily "clamp" to get rid of repeated if/else statements
 
 Revision 4: 
-- add utilities "wrap" to get rid of repeated if/else statements
-- (declare and calculate currently implicit hard-coded settings: resolution, FOV, ray count etc)
+- fix all compiler warnings
+- fix all static analysis warnings
+- begin digging out currently implicit hard-coded settings: resolution, FOV, ray count, map scale etc
+- TODO: refactor overly long and branchy methods
+- TODO: maybe move lookup tables off the heap
