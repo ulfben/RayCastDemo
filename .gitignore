@@ -3,10 +3,6 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
-#allow the library files
-!SDL2.lib
-!SDL2main.lib
-!SDL2test.lib
 
 # User-specific files
 *.rsuser
@@ -343,3 +339,10 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+
+
+#allow the library files
+!RayCastDemo/lib/**/*
+!SDL2.lib
+!SDL2main.lib
+!SDL2test.lib
