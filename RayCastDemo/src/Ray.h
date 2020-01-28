@@ -82,10 +82,10 @@ class Ray {
     static constexpr auto ANGLE_90 = 480;    
     static constexpr auto ANGLE_180 = 960;    
     static constexpr auto ANGLE_270 = 1440;    
-    static constexpr auto ANGLE_360 = 1920;
+    static constexpr auto ANGLE_360 = 1920; //doubles as lookup table size: table_size = (screen width) * (ray count) / (FOV). 360*320/60
 
-    static constexpr auto SCREEN_WIDTH = 320; 
-    static constexpr auto RAY_COUNT = SCREEN_WIDTH; // screen width
+    static constexpr auto SCREEN_WIDTH = 360; 
+    static constexpr auto RAY_COUNT = 320; // screen width
     static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
     static constexpr auto K = 15000.0f; //think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
     static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
