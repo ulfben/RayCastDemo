@@ -3,10 +3,10 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
-#allow the library folders
-!RayCastDemo/lib/
-!RayCastDemo/lib/x64/
-!RayCastDemo/lib/x86/
+#allow the library files
+!SDL2.lib
+!SDL2main.lib
+!SDL2test.lib
 
 # User-specific files
 *.rsuser
