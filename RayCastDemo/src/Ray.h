@@ -84,6 +84,8 @@ class Ray {
     static constexpr auto ANGLE_270 = 1440;    
     static constexpr auto ANGLE_360 = 1920;
 
+    static constexpr auto ASYMTOTIC_RAY_DISTANCE = 1e+8f; //some arbitrary (?) large number to set asymtotic rays to.
+    static constexpr auto TWO_PI = 2.0f * 3.141592654f;
     static constexpr auto RAY_COUNT = 320;
     static constexpr auto WORLD_ROWS = 16; // number of rows in the game world
     static constexpr auto WORLD_COLUMNS = 16; // number of columns in the game world
@@ -93,24 +95,23 @@ class Ray {
     static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);
     static constexpr auto OVERBOARD = 32; // the absolute closest a player can get to a wall
     static constexpr auto START_POS_X = 8;
-    static constexpr auto START_POS_Y = 3;
-    static constexpr auto TWO_PI = 2.0f * 3.141592654f;
+    static constexpr auto START_POS_Y = 3;    
     static constexpr auto MAX_X = 638; //how far to the right we can draw.
     static constexpr auto MIN_X = 2; //how far to the left we can draw.
-    static auto constexpr WALK_SPEED = 10;
-    static auto constexpr VIEWPORT_LEFT = 319;
-    static auto constexpr VIEWPORT_TOP = 1;
-    static auto constexpr VIEWPORT_RIGHT = 638;
-    static auto constexpr VIEWPORT_BOTTOM = 200;
-    static auto constexpr VIEWPORT_HORIZON = 100;
-    static auto constexpr ROTATION_SPEED = ANGLE_5;
+    static constexpr auto WALK_SPEED = 10;
+    static constexpr auto VIEWPORT_LEFT = 319;
+    static constexpr auto VIEWPORT_TOP = 1;
+    static constexpr auto VIEWPORT_RIGHT = 638;
+    static constexpr auto VIEWPORT_BOTTOM = 200;
+    static constexpr auto VIEWPORT_HORIZON = 100;
+    static constexpr auto ROTATION_SPEED = ANGLE_5;
     static constexpr auto MAP_SCALE_FACTOR = 4;
     static constexpr auto ORIG_Y = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
-
-    static constexpr auto DUNNO = 3.272e-4f;
-    static constexpr auto EPSILON_MAYBE = 1e-10f;
-    static auto constexpr A_SIZE_MAYBE = 15000.0f;
-    static constexpr auto ASYMTOTIC_DISTANCE_VALUE = 1e+8f;
+    static constexpr auto ANGLE_TO_RADIANS = (TWO_PI / ANGLE_360);
+    static constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.    
+    static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
+    static constexpr auto K = 15000.0f; //think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
+    
 
     // world map, each cell is 64x64 pixels
     static constexpr char world[WORLD_ROWS][WORLD_COLUMNS] = {
@@ -132,50 +133,48 @@ class Ray {
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
     };
 
-    // tangent tables equivalent to slopes
-    std::array<float, ANGLE_360 + 1> tan_table; // tangent tables used to compute initial
-    std::array<float, ANGLE_360 + 1> inv_tan_table; // intersections with ray
+    // tangent tables equivalent to slopes, used to compute initial intersections with ray
+    std::array<float, ANGLE_360 + 1> tan_table; 
+    std::array<float, ANGLE_360 + 1> inv_tan_table;
 
-    // step tables used to find next intersections, equivalent to slopes
-    // times width and height of cell
-    std::array<float, ANGLE_360 + 1> y_step; // x and y steps, used to find intersections
-    std::array<float, ANGLE_360 + 1> x_step; // after initial one is found
+    // step tables used to find next intersections, equivalent to slopes times width and height of cell    
+    std::array<float, ANGLE_360 + 1> y_step; //x and y steps, used to find intersections after initial one is found
+    std::array<float, ANGLE_360 + 1> x_step;
 
-    // cos table used to fix view distortion caused by caused by radial projection
-    std::array<float, ANGLE_360 + 1> cos_table; // used to cacell out fishbowl effect
+    // cos table used to fix view distortion caused by radial projection, used to cancel out fishbowl effect
+    std::array<float, ANGLE_360 + 1> cos_table;
 
     // 1/cos and 1/sin tables used to compute distance of intersection very quickly
-    std::array<float, ANGLE_360 + 1> inv_cos_table; // used to compute distances by calculating
-    std::array<float, ANGLE_360 + 1> inv_sin_table; // the hypontenuse       
+    std::array<float, ANGLE_360 + 1> inv_cos_table;
+    std::array<float, ANGLE_360 + 1> inv_sin_table;
 
     void Build_Tables() noexcept {
         for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {
-            const float rad_angle = DUNNO + ang * TWO_PI / ANGLE_360;
-            tan_table[ang] = std::tanf(rad_angle);
+            const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //TODO: why are we adding a 0.1 radian? 
+            tan_table[ang] = std::tan(rad_angle);
             inv_tan_table[ang] = 1.0f / tan_table[ang];
-            // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant since the tangent is
-            // equivalent to the slope of a line and if the tangent is wrong then the ray that is case will be wrong
+            // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant. Since the tangent is
+            // equivalent to the slope of a line, if the tangent is wrong then the ray that is cast will be wrong
             if (ang >= ANGLE_0 && ang < ANGLE_180) {
-                y_step[ang] = std::fabs(tan_table[ang] * CELL_HEIGHT);
+                y_step[ang] = std::abs(tan_table[ang] * CELL_HEIGHT);
             }
             else {
-                y_step[ang] = -std::fabs(tan_table[ang] * CELL_HEIGHT);
+                y_step[ang] = -std::abs(tan_table[ang] * CELL_HEIGHT);
             }
             if (ang >= ANGLE_90 && ang < ANGLE_270) {
-                x_step[ang] = -std::fabs(inv_tan_table[ang] * CELL_WIDTH);
+                x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_WIDTH);
             }
             else {
-                x_step[ang] = std::fabs(inv_tan_table[ang] * CELL_WIDTH);
-            }
-            // create the sin and cosine tables to copute distances
+                x_step[ang] = std::abs(inv_tan_table[ang] * CELL_WIDTH);
+            }            
             inv_cos_table[ang] = 1.0f / std::cos(rad_angle);
             inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
         }
-        // create view filter table.  There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
+        // create view filter table. There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
         // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.  Without this we would see a fishbowl effect
         for (int ang = -ANGLE_30; ang <= ANGLE_30; ang++) {
-            const float rad_angle = DUNNO + ang * TWO_PI / ANGLE_360;
-            const int index = ang + ANGLE_30;
+            const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS);
+            const auto index = ang + ANGLE_30;
             cos_table[index] = 1.0f / std::cos(rad_angle);
         }
     }
@@ -206,12 +205,12 @@ class Ray {
         static constexpr auto SCALED_CELL_WIDTH = CELL_WIDTH / MAP_SCALE_FACTOR;
         static constexpr auto SCALED_CELL_HEIGHT = CELL_HEIGHT / MAP_SCALE_FACTOR;
         for (int row = 0; row < WORLD_ROWS; row++) {
+            const auto top = row * SCALED_CELL_HEIGHT;
+            const auto bottom = top + SCALED_CELL_HEIGHT - 1;
             for (int column = 0; column < WORLD_COLUMNS; column++) {
-                const int left = column * SCALED_CELL_WIDTH;
-                const int top = row * SCALED_CELL_HEIGHT;
-                const int right = left + SCALED_CELL_WIDTH - 1;
-                const int bottom = top + SCALED_CELL_HEIGHT - 1;
-                const int block = world[row][column];
+                const auto left = column * SCALED_CELL_WIDTH;                
+                const auto right = left + SCALED_CELL_WIDTH - 1;                
+                const auto block = world[row][column];
                 if (block == 0) {
                     _setcolor(White);
                     _rectangle(RectStyle::OUTLINE, left, top, right, bottom);
@@ -305,7 +304,7 @@ class Ray {
                     if (std::fabs(y_step[view_angle]) == 0) { // test for asymtotic ray      
                         xray_intersection_found = true;
                         casting--;
-                        dist_x = ASYMTOTIC_DISTANCE_VALUE;
+                        dist_x = ASYMTOTIC_RAY_DISTANCE;
                     }
                     // compute current map position to inspect
                     int cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
@@ -329,7 +328,7 @@ class Ray {
                     if (std::fabs(x_step[view_angle]) == 0) { // test for asymtotic ray
                         yray_intersection_found = true;
                         casting--;
-                        dist_y = ASYMTOTIC_DISTANCE_VALUE;
+                        dist_y = ASYMTOTIC_RAY_DISTANCE;
                     }
                     // compute current map position to inspect
                     int cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
@@ -351,40 +350,33 @@ class Ray {
             }
 
             // SECTION 6 /////////////////////////////////////////////////////////
-            // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one
-            // was closer and then render it
-            // note: later we will replace the crude monochrome line with a sliver of texture, but this is good enough for now            
-            float scale; // the final scale to draw the "sliver" in            
-            SDL_Color color = LightGreen;
-            if (dist_x < dist_y) { // there was a vertical wall closer than the horizontal
-                sline(x, y, xb_save, yi_save, LightGreen);
-                scale = cos_table[ray] * A_SIZE_MAYBE / (EPSILON_MAYBE + dist_x); // compute actual scale and multiply by view filter so that spherical distortion is cancelled                 
+            // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one was closer and then render it           
+            // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K.
+            // think of K as a combination of view distance and aspect ratio. Pick a value that looks good (in my case: that makes the block on screen look square). (p.213)            
+            SDL_Color color = White; //white == sliver between wall sections
+            const float min_dist = (dist_x < dist_y) ? dist_x : dist_y;
+            if (dist_x < dist_y) { // there was a vertical wall closer than the horizontal                
                 if (yi_save % CELL_HEIGHT > 1) {
                     color = LightGreen;
-                } else {
-                    color = White; //draw divider between wall sections                
                 }
+                sline(x, y, xb_save, yi_save, color);
             }
-            else { // must have hit a horizontal wall first
-                sline(x, y, xi_save, yb_save, DarkGreen);
-                scale = cos_table[ray] * A_SIZE_MAYBE / (EPSILON_MAYBE + dist_y); // compute actual scale and multiply by view filter so that spherical distortion is cancelled        
+            else { // must have hit a horizontal wall first                            
                 if (xi_save % CELL_WIDTH > 1) {
                     color = DarkGreen;
                 }
-                else {
-                    color = White; //draw divider between wall sections                
-                }                
+                sline(x, y, xi_save, yb_save, color);
             }
-            // compute the top and bottom of the sliver (with crude clipping), which is drawn symmetrically around the viewport horizon. 
-            int top = Utils::clamp(VIEWPORT_HORIZON - static_cast<int>(scale / 2.0f), VIEWPORT_TOP, VIEWPORT_BOTTOM);
-            int bottom = Utils::clamp(static_cast<int>(top + scale), VIEWPORT_TOP, VIEWPORT_BOTTOM);            
+            const auto height = (K / (MINIMUM_INTERSECTION_DISTANCE + min_dist)) * cos_table[ray]; // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
+            const auto top = Utils::clamp(VIEWPORT_HORIZON - static_cast<int>(height / 2.0f), VIEWPORT_TOP, VIEWPORT_BOTTOM); // compute the top and bottom of the sliver (with crude clipping),
+            const auto bottom = Utils::clamp(static_cast<int>(top + height), VIEWPORT_TOP, VIEWPORT_BOTTOM); // slivers are drawn symmetrically around the viewport horizon.             
             _setcolor(color);
             _moveto((MAX_X - ray), top);
             _lineto((MAX_X - ray), bottom);
 
             //move on to next ray
             if (++view_angle >= ANGLE_360){
-                view_angle = 0;// reset angle back to zero
+                view_angle = 0;//reset angle back to zero
             }
         }
     } // end Ray_Caster

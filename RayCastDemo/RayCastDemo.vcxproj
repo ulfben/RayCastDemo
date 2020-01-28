@@ -34,6 +34,9 @@
     <ClCompile Include="src\SDLSystem.cpp" />
     <ClCompile Include="src\Window.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README.md" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <ProjectGuid>{F12FC5BB-F784-47A1-B287-ED96D2EE4598}</ProjectGuid>
