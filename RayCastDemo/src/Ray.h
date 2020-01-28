@@ -84,18 +84,15 @@ class Ray {
     static constexpr auto ANGLE_270 = 1440;    
     static constexpr auto ANGLE_360 = 1920;
 
-    static constexpr auto ASYMTOTIC_RAY_DISTANCE = 1e+8f; //some arbitrary (?) large number to set asymtotic rays to.
-    static constexpr auto TWO_PI = 2.0f * 3.141592654f;
-    static constexpr auto RAY_COUNT = 320;
-    static constexpr auto WORLD_ROWS = 16; // number of rows in the game world
-    static constexpr auto WORLD_COLUMNS = 16; // number of columns in the game world
-    static constexpr auto CELL_WIDTH = 64; // size of a cell in the gamw world
+    static constexpr auto SCREEN_WIDTH = 320; 
+    static constexpr auto RAY_COUNT = SCREEN_WIDTH; // screen width
+    static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
+    static constexpr auto K = 15000.0f; //think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
+    static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
     static constexpr auto CELL_HEIGHT = 64;
-    static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
-    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);
-    static constexpr auto OVERBOARD = 32; // the absolute closest a player can get to a wall
+    static constexpr auto OVERBOARD = (CELL_WIDTH+CELL_HEIGHT)/4; // the absolute closest a player can get to a wall
     static constexpr auto START_POS_X = 8;
-    static constexpr auto START_POS_Y = 3;    
+    static constexpr auto START_POS_Y = 3;
     static constexpr auto MAX_X = 638; //how far to the right we can draw.
     static constexpr auto MIN_X = 2; //how far to the left we can draw.
     static constexpr auto WALK_SPEED = 10;
@@ -106,15 +103,17 @@ class Ray {
     static constexpr auto VIEWPORT_HORIZON = 100;
     static constexpr auto ROTATION_SPEED = ANGLE_5;
     static constexpr auto MAP_SCALE_FACTOR = 4;
+
+    static constexpr auto ASYMTOTIC_RAY_DISTANCE = 1e+8f; //some arbitrary (?) large number to set asymtotic rays to.
+    static constexpr auto TWO_PI = 2.0f * 3.141592654f;
+    static constexpr auto WORLD_ROWS = 16;
+    static constexpr auto WORLD_COLUMNS = 16;   
+    static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
+    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);    
     static constexpr auto ORIG_Y = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
     static constexpr auto ANGLE_TO_RADIANS = (TWO_PI / ANGLE_360);
-    static constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.    
-    static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
-    static constexpr auto K = 15000.0f; //think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
-    
-
-    // world map, each cell is 64x64 pixels
-    static constexpr char world[WORLD_ROWS][WORLD_COLUMNS] = {
+    static constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
+    static constexpr char WORLD[WORLD_ROWS][WORLD_COLUMNS] = { // world map, each cell is 64x64 pixels
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
         {1,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1},
@@ -210,7 +209,7 @@ class Ray {
             for (int column = 0; column < WORLD_COLUMNS; column++) {
                 const auto left = column * SCALED_CELL_WIDTH;                
                 const auto right = left + SCALED_CELL_WIDTH - 1;                
-                const auto block = world[row][column];
+                const auto block = WORLD[row][column];
                 if (block == 0) {
                     _setcolor(White);
                     _rectangle(RectStyle::OUTLINE, left, top, right, bottom);
@@ -311,7 +310,7 @@ class Ray {
                     int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
 
                     // test if there is a block where the current x ray is intersecting
-                    const int x_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
+                    const int x_hit_type = WORLD[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
                     if (x_hit_type != 0) {
                         dist_x = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
                         yi_save = static_cast<int>(yi);
@@ -334,7 +333,7 @@ class Ray {
                     int cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
                     int cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
                     // test if there is a block where the current y ray is intersecting
-                    const int y_hit_type = world[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
+                    const int y_hit_type = WORLD[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
                     if (y_hit_type != 0) {
                         dist_y = (xi - x) * inv_cos_table[view_angle]; // compute distance
                         xi_save = static_cast<int>(xi);
@@ -451,7 +450,7 @@ class Ray {
     }
 
     inline const bool isWall(int x, int y) noexcept {
-        return (world[y][x] != 0);
+        return (WORLD[y][x] != 0);
     }
 
 public:
