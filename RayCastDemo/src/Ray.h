@@ -78,46 +78,49 @@ class Ray {
         }
     }
 
-    static constexpr auto ANGLE_0 = 0; 
-    static constexpr auto ANGLE_5 = 25;    
-    static constexpr auto ANGLE_15 = 80;
-    static constexpr auto ANGLE_30 = 160;
-    static constexpr auto ANGLE_45 = 240;    
-    static constexpr auto ANGLE_90 = 480;    
-    static constexpr auto ANGLE_180 = 960;    
-    static constexpr auto ANGLE_270 = 1440;    
-    static constexpr auto ANGLE_360 = 1920; //doubles as lookup table size: table_size = (screen width) * (ray count) / (FOV). 360*320/60
-
-    static constexpr auto SCREEN_WIDTH = 360; 
-    static constexpr auto RAY_COUNT = 320; // screen width
-    static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
-    static constexpr auto K = 15000.0f; //think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
-    static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
-    static constexpr auto CELL_HEIGHT = 64;
-    static constexpr auto OVERBOARD = (CELL_WIDTH+CELL_HEIGHT)/4; // the absolute closest a player can get to a wall
+    static constexpr auto WIN_WIDTH = 640;
+    static constexpr auto WIN_HEIGHT = 480;
+    static constexpr auto VIEWPORT_WIDTH = 360; //TODO: we still can't tweak this without causing rendering bugs.
+    static constexpr auto VIEWPORT_HEIGHT = 200;
+    static constexpr auto FOV_DEGREES = 60;
+    static constexpr auto RAY_COUNT = VIEWPORT_WIDTH;
+    static constexpr auto TABLE_SIZE = VIEWPORT_WIDTH * RAY_COUNT / FOV_DEGREES;
+    static constexpr auto ANGLE_360 = TABLE_SIZE; //number of possible angles in a full rotation
+    static constexpr auto HALF_FOV_ANGLE = static_cast<int>(ANGLE_360 * ((float)FOV_DEGREES / 360.0f)) / 2; //in angles, not degrees. So FOV 60 (degrees) = HALF_FOV 30 (degree) = 160 angles (for lookup tables)
+    static constexpr auto VIEWPORT_LEFT = 260;
     static constexpr auto START_POS_X = 8;
     static constexpr auto START_POS_Y = 3;
-    static constexpr auto MAX_X = 638; //how far to the right we can draw.
-    static constexpr auto MIN_X = 2; //how far to the left we can draw.
     static constexpr auto WALK_SPEED = 10;
-    static constexpr auto VIEWPORT_LEFT = 319;
-    static constexpr auto VIEWPORT_TOP = 1;
-    static constexpr auto VIEWPORT_RIGHT = 638;
-    static constexpr auto VIEWPORT_BOTTOM = 200;
-    static constexpr auto VIEWPORT_HORIZON = 100;
-    static constexpr auto ROTATION_SPEED = ANGLE_5;
-    static constexpr auto MAP_SCALE_FACTOR = 4;
+    static constexpr auto ROTATION_SPEED = ANGLE_360 / 100; //arbitrary. 
+    static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
+    static constexpr auto CELL_HEIGHT = 64;
+    static constexpr auto K = 15000.0f;// (CELL_WIDTH* CELL_HEIGHT) * 3;// 15000.0f; //think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
 
-    static constexpr auto ASYMTOTIC_RAY_DISTANCE = 1e+8f; //some arbitrary (?) large number to set asymtotic rays to.
+    
+    static constexpr auto ANGLE_270 = static_cast<int>(ANGLE_360 * 0.75f);
+    static constexpr auto ANGLE_180 = ANGLE_360 / 2;
+    static constexpr auto ANGLE_90 = ANGLE_180 / 2;
+    static constexpr auto ANGLE_45 = ANGLE_90 / 2;
+    static constexpr auto ANGLE_0 = 0;    
+    static constexpr auto VIEWPORT_TOP = WIN_HEIGHT / 2 - VIEWPORT_HEIGHT / 2;
+    static constexpr auto VIEWPORT_RIGHT = VIEWPORT_LEFT + VIEWPORT_WIDTH;
+    static constexpr auto VIEWPORT_BOTTOM = VIEWPORT_TOP + VIEWPORT_HEIGHT;
+    static constexpr auto VIEWPORT_HORIZON = VIEWPORT_TOP + (VIEWPORT_HEIGHT / 2);
+    static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
+    static constexpr auto OVERBOARD = (CELL_WIDTH+CELL_HEIGHT)/4; // the absolute closest a player can get to a wall  
+
+    static constexpr auto ASYMTOTIC_RAY_DISTANCE = 1e+8f; //asymtotic rays goes to infinity, so let's cap at some arbitrary (?) large distance
     static constexpr auto TWO_PI = 2.0f * 3.141592654f;
     static constexpr auto WORLD_ROWS = 16;
     static constexpr auto WORLD_COLUMNS = 16;   
     static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
-    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);    
-    static constexpr auto ORIG_Y = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
+    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);
+    static constexpr auto MAP_WIDTH = 256; 
+    static constexpr auto MAP_SCALE_FACTOR = static_cast<int>(1.0f / (static_cast<float>(MAP_WIDTH) / WORLD_WIDTH)); //could invert this (eg: *0.25 instead of /4), but I'll take this ugly casting business once to get integer math throughout the runtime.
+    static constexpr auto MAP_HEIGHT = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
     static constexpr auto ANGLE_TO_RADIANS = (TWO_PI / ANGLE_360);
     static constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
-    static constexpr char WORLD[WORLD_ROWS][WORLD_COLUMNS] = { // world map, each cell is 64x64 pixels
+    static constexpr char WORLD[WORLD_ROWS][WORLD_COLUMNS] = { // world map
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
         {1,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1},
@@ -175,9 +178,9 @@ class Ray {
         }
         // create view filter table. There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
         // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.  Without this we would see a fishbowl effect
-        for (int ang = -ANGLE_30; ang <= ANGLE_30; ang++) {
+        for (int ang = -HALF_FOV_ANGLE; ang <= HALF_FOV_ANGLE; ang++) {
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS);
-            const auto index = ang + ANGLE_30;
+            const auto index = ang + HALF_FOV_ANGLE;
             cos_table[index] = 1.0f / std::cos(rad_angle);
         }
     }
@@ -185,9 +188,9 @@ class Ray {
     void sline(int x1, int y1, int x2, int y2, const SDL_Color& color) noexcept {
         // used a a diagnostic function to draw a scaled line
         x1 = x1 / MAP_SCALE_FACTOR;
-        y1 = ORIG_Y - (y1 / MAP_SCALE_FACTOR);
+        y1 = MAP_HEIGHT - (y1 / MAP_SCALE_FACTOR);
         x2 = x2 / MAP_SCALE_FACTOR;
-        y2 = ORIG_Y - (y2 / MAP_SCALE_FACTOR);
+        y2 = MAP_HEIGHT - (y2 / MAP_SCALE_FACTOR);
         _setcolor(color);
         _moveto(x1, y1);
         _lineto(x2, y2);
@@ -196,7 +199,7 @@ class Ray {
     void splot(int x, int y, const SDL_Color& color) const noexcept{
         // used as a diagnostic function to draw a scaled point
         x = x / MAP_SCALE_FACTOR;
-        y = ORIG_Y - (y / MAP_SCALE_FACTOR);
+        y = MAP_HEIGHT - (y / MAP_SCALE_FACTOR);
         _setcolor(color);
         _setpixel(x, y);
         _setpixel(x + 1, y);
@@ -238,7 +241,7 @@ class Ray {
 
          // SECTION 1 /////////////////////////////////////////////////////////
         // compute starting angle from player.  Field of view is 60 degrees, so subtract half of that from the current view angle
-        if ((view_angle -= ANGLE_30) < 0){
+        if ((view_angle -= HALF_FOV_ANGLE) < 0){
             view_angle = ANGLE_360 + view_angle; // wrap angle around
         }
         for (int ray = 0; ray < RAY_COUNT; ray++) {
@@ -314,8 +317,7 @@ class Ray {
                     const auto cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
 
                     // test if there is a block where the current x ray is intersecting
-                    const int x_hit_type = WORLD[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
-                    if (x_hit_type != 0) {
+                    if (isWall(cell_x, cell_y)) {
                         dist_x = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
                         yi_save = static_cast<int>(yi);
                         xb_save = x_bound;
@@ -337,8 +339,7 @@ class Ray {
                     const auto  cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
                     const auto  cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
                     // test if there is a block where the current y ray is intersecting
-                    const int y_hit_type = WORLD[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
-                    if (y_hit_type != 0) {
+                    if (isWall(cell_x, cell_y)) {
                         dist_y = (xi - x) * inv_cos_table[view_angle]; // compute distance
                         xi_save = static_cast<int>(xi);
                         yb_save = y_bound;
@@ -374,8 +375,8 @@ class Ray {
             const auto top = Utils::clamp(VIEWPORT_HORIZON - static_cast<int>(height / 2.0f), VIEWPORT_TOP, VIEWPORT_BOTTOM); // compute the top and bottom of the sliver (with crude clipping),
             const auto bottom = Utils::clamp(static_cast<int>(top + height), VIEWPORT_TOP, VIEWPORT_BOTTOM); // slivers are drawn symmetrically around the viewport horizon.             
             _setcolor(color);
-            _moveto((MAX_X - ray), top);
-            _lineto((MAX_X - ray), bottom);
+            _moveto((VIEWPORT_RIGHT - ray), top);
+            _lineto((VIEWPORT_RIGHT - ray), bottom);
 
             //move on to next ray
             if (++view_angle >= ANGLE_360){
@@ -391,7 +392,7 @@ class Ray {
         _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_TOP, VIEWPORT_RIGHT, VIEWPORT_HORIZON);
         _setcolor(Brown);
         _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_HORIZON, VIEWPORT_RIGHT, VIEWPORT_BOTTOM);
-        _setcolor(White);
+        _setcolor(DarkRed);
         _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around map
     }
 
@@ -423,32 +424,34 @@ class Ray {
     void checkCollisions() {
         // test if user has bumped into a wall i.e. test if there is a cell within the direction of motion, if so back up!                               
         int x_cell = _viewPoint.x / CELL_WIDTH;
-        int y_cell = (WORLD_ROWS - 1) - (_viewPoint.y / CELL_HEIGHT);
+        int y_cell = (WORLD_ROWS - 1)-(_viewPoint.y / CELL_HEIGHT);
         int x_sub_cell = _viewPoint.x % CELL_WIDTH; // compute position within the cell
         int y_sub_cell = _viewPoint.y % CELL_HEIGHT;
 
-        if (_viewPoint.dx > 0 && isWall(x_cell + 1, y_cell)) {// moving right, towards a wall
+        if (_viewPoint.dx > 0 && isWallColl(x_cell + 1, y_cell)) {// moving right, towards a wall
             if (x_sub_cell > (CELL_WIDTH - OVERBOARD)) {
                 _viewPoint.x -= (x_sub_cell - (CELL_WIDTH - OVERBOARD)); // back player up amount they stepped over the line
             }
-        } else if (_viewPoint.dx < 0 && isWall(x_cell - 1, y_cell)) {// moving left, towards a wall
+        } else if (_viewPoint.dx < 0 && isWallColl(x_cell - 1, y_cell)) {// moving left, towards a wall
             if (x_sub_cell < (OVERBOARD)) {
                 _viewPoint.x += (OVERBOARD - x_sub_cell);
             }
         }
-        if (_viewPoint.dy > 0 && isWall(x_cell, y_cell - 1)) { // moving up, towards a wall
+        if (_viewPoint.dy > 0 && isWallColl(x_cell, y_cell - 1)) { // moving up, towards a wall
             if (y_sub_cell > (CELL_HEIGHT - OVERBOARD)) {
                 _viewPoint.y -= (y_sub_cell - (CELL_HEIGHT - OVERBOARD));
             }
-        } else if (_viewPoint.dy < 0 && isWall(x_cell, y_cell + 1)) {// moving down            
+        } else if (_viewPoint.dy < 0 && isWallColl(x_cell, y_cell + 1)) {// moving down            
             if (y_sub_cell < (OVERBOARD)) {
                 _viewPoint.y += (OVERBOARD - y_sub_cell);
             }
         }
     }
-
-    inline const bool isWall(int x, int y) noexcept {
+    inline constexpr bool isWallColl(int x, int y) const noexcept {
         return (WORLD[y][x] != 0);
+    }
+    inline constexpr bool isWall(int x, int y) const noexcept {
+        return (WORLD[(WORLD_ROWS - 1) - y][x] != 0);
     }
 
 public:

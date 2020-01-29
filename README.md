@@ -84,5 +84,9 @@ Bugs:
 - remove my ColorRegister-enum. If I'm changing the original function signatures to accept an enum value, I might as well have them take the SDL_Color directly.
 - fix some spelling misstakes
 - begin digging out currently implicit values and give them names: resolution, FOV, ray count, map scale etc
-- TODO: refactor overly long and branchy methods
-- TODO: maybe move lookup tables off the heap
+
+### TODO:
+- refactor overly long and branchy methods
+- maybe move lookup tables off the stack
+- move 2D map rendering to separate class, make optional. Potentially a compile time setting.
+- 
