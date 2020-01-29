@@ -43,7 +43,11 @@ class Ray {
     const Renderer& _r;
     InputManager& _input;    
     ViewPoint _viewPoint;
-
+    using KeyMap = Keys<3>;
+    const KeyMap rotateRight{ SDL_SCANCODE_KP_6, SDL_SCANCODE_RIGHT, SDL_SCANCODE_D };
+    const KeyMap rotateLeft{ SDL_SCANCODE_KP_4, SDL_SCANCODE_LEFT, SDL_SCANCODE_A };
+    const KeyMap moveForward{ SDL_SCANCODE_KP_8, SDL_SCANCODE_UP, SDL_SCANCODE_W };
+    const KeyMap moveBackward{ SDL_SCANCODE_KP_2, SDL_SCANCODE_DOWN, SDL_SCANCODE_S };
     int _x1 = 0;
     int _y1 = 0;
     void _setcolor(int lutIndex) const noexcept {
@@ -306,8 +310,8 @@ class Ray {
                         dist_x = ASYMTOTIC_RAY_DISTANCE;
                     }
                     // compute current map position to inspect
-                    int cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
-                    int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
+                    const auto cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
+                    const auto cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
 
                     // test if there is a block where the current x ray is intersecting
                     const int x_hit_type = WORLD[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
@@ -330,8 +334,8 @@ class Ray {
                         dist_y = ASYMTOTIC_RAY_DISTANCE;
                     }
                     // compute current map position to inspect
-                    int cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
-                    int cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
+                    const auto  cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
+                    const auto  cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
                     // test if there is a block where the current y ray is intersecting
                     const int y_hit_type = WORLD[(WORLD_ROWS - 1) - cell_y][cell_x];  // records the block that was intersected, used to figure  out which texture to use
                     if (y_hit_type != 0) {
@@ -391,33 +395,27 @@ class Ray {
         _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around map
     }
 
-    void updateViewPoint() {
+    void updateViewPoint() {       
         _viewPoint.dx = 0.0f;
-        _viewPoint.dy = 0.0f;
-        if (_input.isKeyDown(SDL_SCANCODE_KP_6) || _input.isKeyDown(SDL_SCANCODE_RIGHT)) {
+        _viewPoint.dy = 0.0f;        
+        if (_input.isAnyKeyDown(rotateRight)) {
             if ((_viewPoint.angle -= ROTATION_SPEED) < ANGLE_0) {
                 _viewPoint.angle = ANGLE_360;
             }
         }
-        else if (_input.isKeyDown(SDL_SCANCODE_KP_4) || _input.isKeyDown(SDL_SCANCODE_LEFT)) {
+        else if (_input.isAnyKeyDown(rotateLeft)) {
             if ((_viewPoint.angle += ROTATION_SPEED) >= ANGLE_360) {
                 _viewPoint.angle = ANGLE_0;
             }
         }
-        if (_input.isKeyDown(SDL_SCANCODE_KP_8) || _input.isKeyDown(SDL_SCANCODE_UP)) {
+        if (_input.isAnyKeyDown(moveForward)) {
             _viewPoint.dx = cos(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;     // move player along view vector foward
             _viewPoint.dy = sin(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;
         } 
-        else if (_input.isKeyDown(SDL_SCANCODE_KP_2) || _input.isKeyDown(SDL_SCANCODE_DOWN)) {
+        else if (_input.isAnyKeyDown(moveBackward)) {
             _viewPoint.dx = -cos(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED; // move player along view vector backward
             _viewPoint.dy = -sin(TWO_PI * _viewPoint.angle / ANGLE_360) * WALK_SPEED;
         }       
-        if (_input.isKeyDown(SDL_SCANCODE_A)) { //strafe left
-          //TODO
-        }
-        else if (_input.isKeyDown(SDL_SCANCODE_A)) { //strafe right
-          //TODO
-        }
         _viewPoint.x += static_cast<int>(_viewPoint.dx);
         _viewPoint.y += static_cast<int>(_viewPoint.dy);
     }
