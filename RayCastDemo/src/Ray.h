@@ -1,6 +1,6 @@
 #pragma once
 #include <array>
-
+#include <cmath>
 #include "Renderer.h"
 #include "InputManager.h"
 #include "SDLSystem.h"
@@ -77,16 +77,16 @@ class Ray {
             _r.drawRect(rect);
         }
     }
-
+    
     static constexpr auto WIN_WIDTH = 640;
     static constexpr auto WIN_HEIGHT = 480;
-    static constexpr auto VIEWPORT_WIDTH = 360; //TODO: we still can't tweak this without causing rendering bugs.
-    static constexpr auto VIEWPORT_HEIGHT = 200;
-    static constexpr auto FOV_DEGREES = 60;
-    static constexpr auto RAY_COUNT = VIEWPORT_WIDTH;
-    static constexpr auto TABLE_SIZE = VIEWPORT_WIDTH * RAY_COUNT / FOV_DEGREES;
+    static constexpr auto VIEWPORT_WIDTH = 333; //TODO: we still can't tweak this without causing rendering bugs.
+    static constexpr auto VIEWPORT_HEIGHT = 240;
+    static constexpr auto RAY_COUNT = VIEWPORT_WIDTH; //one ray per column of screen space (horizontal resolution)    
+    static constexpr auto FOV_DEGREES = 60; //Field of View, in degrees. We'll need to break these into RAY_COUNT sub-angles and cast a ray for each angle. We'll be using a lookup table for that        
+    static constexpr auto TABLE_SIZE = static_cast<int>(Utils::ceil(VIEWPORT_WIDTH * (360.0f / FOV_DEGREES))); //how many elements we need to store the slope of every possible ray that can be projected.
     static constexpr auto ANGLE_360 = TABLE_SIZE; //number of possible angles in a full rotation
-    static constexpr auto HALF_FOV_ANGLE = static_cast<int>(ANGLE_360 * ((float)FOV_DEGREES / 360.0f)) / 2; //in angles, not degrees. So FOV 60 (degrees) = HALF_FOV 30 (degree) = 160 angles (for lookup tables)
+    static constexpr auto HALF_FOV_ANGLE = static_cast<int>(ANGLE_360 / (360.0f / FOV_DEGREES)) / 2; //in angles, not degrees. So FOV 60 (degrees) = HALF_FOV 30 (degree) = 160 angles (for lookup tables)
     static constexpr auto VIEWPORT_LEFT = 260;
     static constexpr auto START_POS_X = 8;
     static constexpr auto START_POS_Y = 3;
@@ -94,9 +94,8 @@ class Ray {
     static constexpr auto ROTATION_SPEED = ANGLE_360 / 100; //arbitrary. 
     static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
     static constexpr auto CELL_HEIGHT = 64;
-    static constexpr auto K = 15000.0f;// (CELL_WIDTH* CELL_HEIGHT) * 3;// 15000.0f; //think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
+    static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
 
-    
     static constexpr auto ANGLE_270 = static_cast<int>(ANGLE_360 * 0.75f);
     static constexpr auto ANGLE_180 = ANGLE_360 / 2;
     static constexpr auto ANGLE_90 = ANGLE_180 / 2;
@@ -112,7 +111,9 @@ class Ray {
     static constexpr auto ASYMTOTIC_RAY_DISTANCE = 1e+8f; //asymtotic rays goes to infinity, so let's cap at some arbitrary (?) large distance
     static constexpr auto TWO_PI = 2.0f * 3.141592654f;
     static constexpr auto WORLD_ROWS = 16;
-    static constexpr auto WORLD_COLUMNS = 16;   
+    static constexpr auto WORLD_COLUMNS = 16;
+    static constexpr auto FIRST_VALID_SPACE = 1; //to shortcut collision testing we can check against the map boundary walls
+    static constexpr auto LAST_VALID_SPACE = WORLD_ROWS-2; //0 == wall, 15 == wall. so if our position is below or above the valid spaces, we can bail without performing lookup. TODO: this should be part of the map data. 
     static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
     static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);
     static constexpr auto MAP_WIDTH = 256; 
@@ -421,37 +422,67 @@ class Ray {
         _viewPoint.y += static_cast<int>(_viewPoint.dy);
     }
 
+
     void checkCollisions() {
         // test if user has bumped into a wall i.e. test if there is a cell within the direction of motion, if so back up!                               
-        int x_cell = _viewPoint.x / CELL_WIDTH;
-        int y_cell = (WORLD_ROWS - 1)-(_viewPoint.y / CELL_HEIGHT);
+        constexpr auto MAX_POS = WORLD_WIDTH - CELL_WIDTH;
+        int x_cell = _viewPoint.x / CELL_WIDTH;        
+        int y_cell = (WORLD_ROWS - 1) - (_viewPoint.y / CELL_HEIGHT);
         int x_sub_cell = _viewPoint.x % CELL_WIDTH; // compute position within the cell
         int y_sub_cell = _viewPoint.y % CELL_HEIGHT;
+        
 
-        if (_viewPoint.dx > 0 && isWallColl(x_cell + 1, y_cell)) {// moving right, towards a wall
+        if (_viewPoint.dx > 0 && isDebug(x_cell + 1, y_cell)) {// moving right, towards a wall
             if (x_sub_cell > (CELL_WIDTH - OVERBOARD)) {
+                int modded = (_viewPoint.y / CELL_HEIGHT);
+                modded = (WORLD_ROWS - 1) - modded;
+                std::cout << "\nxcell: " << x_cell << " ycell was: " << y_cell <<  " modded: " << modded << "\n";
                 _viewPoint.x -= (x_sub_cell - (CELL_WIDTH - OVERBOARD)); // back player up amount they stepped over the line
             }
-        } else if (_viewPoint.dx < 0 && isWallColl(x_cell - 1, y_cell)) {// moving left, towards a wall
+        }
+        else if (_viewPoint.dx < 0 && isDebug(x_cell - 1, y_cell)) {// moving left, towards a wall
             if (x_sub_cell < (OVERBOARD)) {
+                int modded = (_viewPoint.y / CELL_HEIGHT);
+                modded = (WORLD_ROWS - 1) - modded;
+                std::cout << "\nxcell: " << x_cell << " ycell was: " << y_cell << " modded: " << modded << "\n";
                 _viewPoint.x += (OVERBOARD - x_sub_cell);
             }
         }
-        if (_viewPoint.dy > 0 && isWallColl(x_cell, y_cell - 1)) { // moving up, towards a wall
+
+        if (_viewPoint.dy > 0 && isDebug(x_cell, y_cell - 1)) { // moving up, towards a wall
             if (y_sub_cell > (CELL_HEIGHT - OVERBOARD)) {
+                int modded = (_viewPoint.y / CELL_HEIGHT)-1;
+                modded = (WORLD_ROWS - 1) - modded;
+                std::cout << "\nxcell: " << x_cell << " ycell was: " << y_cell-1 << " modded: " << modded << "\n";
                 _viewPoint.y -= (y_sub_cell - (CELL_HEIGHT - OVERBOARD));
             }
-        } else if (_viewPoint.dy < 0 && isWallColl(x_cell, y_cell + 1)) {// moving down            
+        }
+        else if (_viewPoint.dy < 0 && isDebug(x_cell, y_cell + 1)) {// moving down            
             if (y_sub_cell < (OVERBOARD)) {
+                int modded = (_viewPoint.y / CELL_HEIGHT)+1;                
+                modded = (WORLD_ROWS - 1) - modded;
+                std::cout << "\nxcell: " << x_cell << " ycell was: " << y_cell+1 <<  " modded: " << modded << "\n";
                 _viewPoint.y += (OVERBOARD - y_sub_cell);
             }
         }
     }
-    inline constexpr bool isWallColl(int x, int y) const noexcept {
+
+    inline constexpr bool isDebug(int x, int y) const noexcept {
+        if (x < FIRST_VALID_SPACE || y < FIRST_VALID_SPACE
+            || x > LAST_VALID_SPACE || y > LAST_VALID_SPACE) {
+            return true;
+        }
         return (WORLD[y][x] != 0);
     }
+
     inline constexpr bool isWall(int x, int y) const noexcept {
-        return (WORLD[(WORLD_ROWS - 1) - y][x] != 0);
+        const auto LAST_ROW = (WORLD_ROWS - 1);
+        y = LAST_ROW - y;
+        if (x < FIRST_VALID_SPACE || y < FIRST_VALID_SPACE 
+            || x > LAST_VALID_SPACE || y > LAST_VALID_SPACE) {
+            return true;
+        }        
+        return (WORLD[y][x] != 0);
     }
 
 public:
