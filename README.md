@@ -83,10 +83,19 @@ Bugs:
 - fix all static analysis warnings
 - remove my ColorRegister-enum. If I'm changing the original function signatures to accept an enum value, I might as well have them take the SDL_Color directly.
 - fix some spelling misstakes
+- added support to conveniently check multiple keys for a single action "InputManager::isAnyKeyDown(Keys)"
+- added mouse interaction (teleport player by clicking on the map). Mainly done to help me understand the coordinate system.
 - begin digging out currently implicit values and give them names: resolution, FOV, ray count, map scale etc
 
 ### TODO:
-- refactor overly long and branchy methods
-- maybe move lookup tables off the stack
+- figure out why the coordinate system is reversed in-world vs. screen, and if we could stop it being so.
 - move 2D map rendering to separate class, make optional. Potentially a compile time setting.
-- 
+- refactor remaining overly long and branchy methods
+- prepare for port to Arduboy 
+--- provide a proper facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
+--- provide a another facade for the input management 
+
+### Bugs: 
+- The raycaster draws on the viewport boundaries (bottom and right). We're off by 1, someplace.
+- Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
+--- need to figure out what the relationship between these values are.

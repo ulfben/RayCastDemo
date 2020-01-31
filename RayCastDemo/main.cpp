@@ -8,7 +8,7 @@
 #include "src/Ray.h"
 namespace Config {
 	using namespace std::literals::string_view_literals;
-	static const std::string_view TITLE = "Ray Caster Demo (5th iteration)"sv;	
+	static const std::string_view TITLE = "Ray Caster Demo (4th iteration)"sv;	
 	static const int WIN_WIDTH = 640;	
 	static const int WIN_HEIGHT = 480;		
 };

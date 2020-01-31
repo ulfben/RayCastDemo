@@ -18,4 +18,10 @@ namespace Utils {
 			? static_cast<int32_t>(num)
 			: static_cast<int32_t>(num) + ((num > 0) ? 1 : 0);
 	}
+
+	template<typename T>
+	constexpr inline bool isInRectangle(T x, T y, T left, T top, T right, T bottom) noexcept {
+		return (x > left && x < right) && (y > top && y < bottom);
+	}
+
 }
