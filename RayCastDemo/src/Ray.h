@@ -424,13 +424,13 @@ class Ray {
         if (_input.isAnyKeyDown(moveForward)) {            
             _viewPoint.dx = cos(_viewPoint.angle*ANGLE_TO_RADIANS) * WALK_SPEED;
             _viewPoint.dy = sin(_viewPoint.angle*ANGLE_TO_RADIANS) * WALK_SPEED;
-            std::cout << "player x:" << _viewPoint.x << "player y:" << _viewPoint.y << " angle: " << _viewPoint.angle << "\n";
+            std::cout << "player x:" << _viewPoint.x << " player y:" << _viewPoint.y << " angle: " << _viewPoint.angle << "\n";
             
         } 
         else if (_input.isAnyKeyDown(moveBackward)) {            
             _viewPoint.dx = -cos(_viewPoint.angle*ANGLE_TO_RADIANS) * WALK_SPEED;
             _viewPoint.dy = -sin(_viewPoint.angle*ANGLE_TO_RADIANS) * WALK_SPEED;
-            std::cout << "player x:" << _viewPoint.x << "player y:" << _viewPoint.y << " angle: " << _viewPoint.angle << "\n";
+            std::cout << "player x:" << _viewPoint.x << " player y:" << _viewPoint.y << " angle: " << _viewPoint.angle << "\n";
         }       
         _viewPoint.x += static_cast<int>(_viewPoint.dx);
         _viewPoint.y += static_cast<int>(_viewPoint.dy);
