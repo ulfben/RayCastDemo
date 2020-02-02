@@ -13,15 +13,20 @@ namespace Utils {
 	}	
 	
 	template <typename Real>
-	constexpr int32_t ceil(Real num){
+	constexpr int32_t ceil(Real num) noexcept {
 		return (static_cast<Real>(static_cast<int32_t>(num)) == num)
 			? static_cast<int32_t>(num)
 			: static_cast<int32_t>(num) + ((num > 0) ? 1 : 0);
+	}
+
+	constexpr size_t log2(size_t n) noexcept{
+		return ((n < 2) ? 0 : 1 + log2(n / 2));
 	}
 
 	template<typename T>
 	constexpr inline bool isInRectangle(T x, T y, T left, T top, T right, T bottom) noexcept {
 		return (x > left && x < right) && (y > top && y < bottom);
 	}
+
 
 }

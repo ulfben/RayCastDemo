@@ -93,6 +93,8 @@ class Ray {
     static constexpr auto ROTATION_SPEED = ANGLE_360 / 100; //arbitrary. 
     static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
     static constexpr auto CELL_HEIGHT = 64;
+    static constexpr auto CELL_WIDTH_FP = Utils::log2(CELL_WIDTH); // log base 2 of 64 (used for quick division)
+    static constexpr auto CELL_HEIGHT_FP = Utils::log2(CELL_HEIGHT);
     static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
     static constexpr auto ANGLE_270 = static_cast<int>(ANGLE_360 * 0.75f); //down
     static constexpr auto ANGLE_180 = ANGLE_360 / 2; //left
@@ -106,8 +108,6 @@ class Ray {
     static constexpr auto VIEWPORT_HORIZON = VIEWPORT_TOP + (VIEWPORT_HEIGHT / 2);
     static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
     static constexpr auto OVERBOARD = (CELL_WIDTH+CELL_HEIGHT)/4; // the absolute closest a player can get to a wall  
-
-    static constexpr auto ASYMTOTIC_RAY_DISTANCE = 1e+8f; //asymtotic rays goes to infinity, so let's cap at some arbitrary (?) large distance
     static constexpr auto TWO_PI = 2.0f * 3.141592654f;
     static constexpr auto WORLD_ROWS = 16;
     static constexpr auto WORLD_COLUMNS = 16;
@@ -174,7 +174,14 @@ class Ray {
             }
             else {
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_WIDTH);
-            }            
+            }     
+
+            //asymtotic rays goes to infinity,
+            //this test was originally handled in the ray caster inner loop, but never triggered during development
+            //hence I moved the check to build time and if they ever trigger we'll have to ad back the if statements to the caster.
+            SDL_assert(std::fabs(y_step[ang]) != 0 && "Test for asymtotic ray on the y-axis while building lookup tables.");
+            SDL_assert(std::fabs(x_step[ang]) != 0 && "Test for asymtotic ray on the x-axis while building lookup tables.");
+            
             inv_cos_table[ang] = 1.0f / std::cos(rad_angle);
             inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
         }
@@ -304,15 +311,12 @@ class Ray {
             float dist_y = 0.0f; // the viewpoint
             while (casting) {
                 // continue casting each ray in parallel
-                if (!xray_intersection_found) {
-                    if (std::fabs(y_step[view_angle]) == 0) { // test for asymtotic ray      
-                        xray_intersection_found = true;
-                        casting--;
-                        dist_x = ASYMTOTIC_RAY_DISTANCE;
-                    }
+                if (!xray_intersection_found) {                  
                     // compute current map position to inspect
-                    const auto cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
-                    const auto cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
+                    //const auto cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
+                    const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization shift instead of divide, might help the Arduboy
+                    //const int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
+                    const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;  //Optimization                  
 
                     // test if there is a block where the current x ray is intersecting
                     if (isWall(cell_x, cell_y)) {
@@ -327,15 +331,13 @@ class Ray {
                 }
 
                 // SECTION 5 /////////////////////////////////////////////////////////
-                if (!yray_intersection_found) {
-                    if (std::fabs(x_step[view_angle]) == 0) { // test for asymtotic ray
-                        yray_intersection_found = true;
-                        casting--;
-                        dist_y = ASYMTOTIC_RAY_DISTANCE;
-                    }
+                if (!yray_intersection_found) {                 
                     // compute current map position to inspect
-                    const auto  cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
-                    const auto  cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
+                    //const auto  cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
+                    const int cell_x = static_cast<int>(xi) >> CELL_WIDTH_FP;   // the current cell that the ray is in
+                    //const auto  cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
+                    const int cell_y = ((y_bound + next_y_cell) >> CELL_HEIGHT_FP);
+
                     // test if there is a block where the current y ray is intersecting
                     if (isWall(cell_x, cell_y)) {
                         dist_y = (xi - x) * inv_cos_table[view_angle]; // compute distance
