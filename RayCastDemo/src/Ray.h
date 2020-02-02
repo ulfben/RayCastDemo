@@ -230,7 +230,7 @@ class Ray {
     }
         
     void Ray_Caster(int x, int y, int view_angle) {
-        // This function casts out RAYCOUNT rays from the viewer and builds up the video
+        // This function casts out RAY_COUNT rays from the viewer and builds up the video
         // display based on the intersections with the walls. The rays are
         // cast in such a way that they all fit into a FOV field of view
         // a ray is cast and then the distance to the first horizontal and vertical
@@ -253,15 +253,17 @@ class Ray {
             int next_y_cell; // used to figure out the quadrant of the ray
             if (view_angle >= ANGLE_0 && view_angle < ANGLE_180) {
                 // compute first horizontal line that could be intersected with ray. note: it will be above player
-                y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT);// compute delta to get to next horizontal line                
+                //y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT);// compute delta to get to next horizontal line                
+                y_bound = (CELL_HEIGHT + (y & 0xFFC0)); //Optimization. Any integral number modulo N is equivalent to the same number logically combined with (N-1) using the AND function. In other words: x % 64 == x AND 63.
                 y_delta = CELL_HEIGHT;
                 xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin
                 next_y_cell = 0; // set cell delta
             }
             else {
                 // compute first horizontal line that could be intersected with ray. note: it will be below player
-                y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); // compute delta to get to next horizontal line                
-                y_delta = -CELL_HEIGHT;
+                //y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); // compute delta to get to next horizontal line                
+                y_bound = (y & 0xFFC0); //Optimization. Any integral number modulo N is equivalent to the same number logically combined with (N-1) using the AND function. In other words: x % 64 == x AND 63.
+                y_delta = -CELL_HEIGHT; 
                 xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
                 next_y_cell = -1; // set cell delta
             }
@@ -274,14 +276,16 @@ class Ray {
             // compute first y intersection. need to know which half plane we are casting from relative to X axis
             if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) {
                 // compute first vertical line that could be intersected with ray. note: it will be to the right of player
-                x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);
+                //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);
+                x_bound = (CELL_WIDTH + (x & 0xFFC0)); //TODO: why 0xFFC0 (65472, or top ten binary digits)
                 x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
                 yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
                 next_x_cell = 0; // set cell delta
             }
             else {
                 // compute first vertical line that could be intersected with ray. note: it will be to the left of player
-                x_bound = CELL_WIDTH * (x / CELL_WIDTH);
+                //x_bound = CELL_WIDTH * (x / CELL_WIDTH);
+                x_bound = (x & 0xFFC0); //TODO: why 0xFFC0 (65472, or top ten binary digits)
                 x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
                 yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
                 next_x_cell = -1; // set cell delta
