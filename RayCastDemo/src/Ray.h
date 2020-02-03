@@ -80,8 +80,9 @@ class Ray {
     
     static constexpr auto WIN_WIDTH = 640;
     static constexpr auto WIN_HEIGHT = 480;
-    static constexpr auto VIEWPORT_WIDTH = 320; //TODO: Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
-    static constexpr auto VIEWPORT_HEIGHT = 240;
+    static constexpr auto MAP_WIDTH = 256; //target width of the minimap, in pixels. 
+    static constexpr auto VIEWPORT_WIDTH = 128; //TODO: Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
+    static constexpr auto VIEWPORT_HEIGHT = 64;
     static constexpr auto RAY_COUNT = VIEWPORT_WIDTH; //one ray per column of screen space (horizontal resolution)    
     static constexpr auto FOV_DEGREES = 60; //Field of View, in degrees. We'll need to break these into RAY_COUNT sub-angles and cast a ray for each angle. We'll be using a lookup table for that        
     static constexpr auto TABLE_SIZE = static_cast<int>(VIEWPORT_WIDTH * (360.0f / FOV_DEGREES)); //how many elements we need to store the slope of every possible ray that can be projected.
@@ -95,13 +96,14 @@ class Ray {
     static constexpr auto CELL_HEIGHT = 64; //must be a power of two
     static constexpr auto CELL_WIDTH_FP = Utils::log2(CELL_WIDTH); // log base 2 of 64 (used for quick division)
     static constexpr auto CELL_HEIGHT_FP = Utils::log2(CELL_HEIGHT);
-    static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
+    //320x240@60fov = K15000, 128x64@60fov = K7000
+    static constexpr auto K = 7000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
     static constexpr auto ANGLE_270 = static_cast<int>(ANGLE_360 * 0.75f); //down
     static constexpr auto ANGLE_180 = ANGLE_360 / 2; //left
     static constexpr auto ANGLE_90 = ANGLE_180 / 2; //up
     static constexpr auto ANGLE_45 = ANGLE_90 / 2; //up and right
     static constexpr auto ANGLE_0 = 0;  //also right (same as 360)
-    static constexpr auto VIEWPORT_LEFT = 260; //arbritrary position of the viewport
+    static constexpr auto VIEWPORT_LEFT = MAP_WIDTH + (((WIN_WIDTH-MAP_WIDTH)/2)- (VIEWPORT_WIDTH/2)); //center between map and screen edge
     static constexpr auto VIEWPORT_TOP = WIN_HEIGHT / 2 - VIEWPORT_HEIGHT / 2;
     static constexpr auto VIEWPORT_RIGHT = VIEWPORT_LEFT + VIEWPORT_WIDTH;
     static constexpr auto VIEWPORT_BOTTOM = VIEWPORT_TOP + VIEWPORT_HEIGHT;
@@ -117,7 +119,6 @@ class Ray {
     static constexpr auto test = Utils::nextPowerOfTwo(WORLD_WIDTH);
     //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be based on an even power-of-two >= WORLD_WIDTH. Used to quickly round our position to nearest cell wall using bitwise AND.
     static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_WIDTH) ? WORLD_WIDTH : Utils::nextPowerOfTwo(WORLD_WIDTH))-CELL_WIDTH;                
-    static constexpr auto MAP_WIDTH = 256; //target width of the minimap, in pixels. 
     static constexpr auto MAP_SCALE_FACTOR = static_cast<int>(1.0f / (static_cast<float>(MAP_WIDTH) / WORLD_WIDTH)); //could invert this (eg: *0.25 instead of /4), but I'll take this ugly casting business once to get integer math throughout the runtime.
     static constexpr auto MAP_HEIGHT = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
     static constexpr auto SCALED_CELL_WIDTH = CELL_WIDTH / MAP_SCALE_FACTOR;
