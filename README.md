@@ -88,14 +88,15 @@ Bugs:
 - begin digging out currently implicit values and give them names: resolution, FOV, ray count, map scale etc
 
 ### TODO:
-- figure out why the coordinate system is reversed in-world vs. screen, and if we could stop it being so.
 - move 2D map rendering to separate class, make optional. Potentially a compile time setting.
-- refactor remaining overly long and branchy methods
+- split ray_caster into separate functions for x and y, to avoid excessive branching (at the cost of some code duplication?)
 - prepare for port to Arduboy 
---- provide a proper facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
---- provide a another facade for the input management 
+  - provide a proper facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
+  - provide a another facade for the input management 
+  - try to minimize floating point arithmetic and the use of division... 
 
 ### Bugs: 
+- The coordinate system is reversed in-world vs. on screen. Figure out why. Logic would be easier if we could change this.
 - The raycaster draws on the viewport boundaries (bottom and right). We're off by 1, someplace.
 - Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
---- need to figure out what the relationship between these values are.
+  - need to figure out what the relationship between these values are.

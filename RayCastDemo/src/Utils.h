@@ -24,6 +24,19 @@ namespace Utils {
 	}
 
 	template<typename T>
+	bool constexpr isPowerOfTwo(T x) noexcept {
+		return (x != 0) && ((x & (x - 1)) == 0);
+	}
+
+	//courtesy of Graham Palmer, https://stackoverflow.com/a/53935759
+	//This also allows you to specify a minimum power of 2 - i.e.upperPowerOfTwo(1, 3) return 8.
+	template <typename T,
+		typename = typename std::enable_if<std::is_integral<T>::value>::type>
+		constexpr T nextPowerOfTwo(T value, size_t pow = 0) noexcept {		
+		return (value >> pow) ? nextPowerOfTwo(value, pow + 1) : T(1) << pow;
+	}
+
+	template<typename T>
 	constexpr inline bool isInRectangle(T x, T y, T left, T top, T right, T bottom) noexcept {
 		return (x > left && x < right) && (y > top && y < bottom);
 	}

@@ -92,7 +92,7 @@ class Ray {
     static constexpr auto WALK_SPEED = 10;
     static constexpr auto ROTATION_SPEED = ANGLE_360 / 100; //arbitrary. 
     static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
-    static constexpr auto CELL_HEIGHT = 64;
+    static constexpr auto CELL_HEIGHT = 64; //must be a power of two
     static constexpr auto CELL_WIDTH_FP = Utils::log2(CELL_WIDTH); // log base 2 of 64 (used for quick division)
     static constexpr auto CELL_HEIGHT_FP = Utils::log2(CELL_HEIGHT);
     static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
@@ -105,8 +105,7 @@ class Ray {
     static constexpr auto VIEWPORT_TOP = WIN_HEIGHT / 2 - VIEWPORT_HEIGHT / 2;
     static constexpr auto VIEWPORT_RIGHT = VIEWPORT_LEFT + VIEWPORT_WIDTH;
     static constexpr auto VIEWPORT_BOTTOM = VIEWPORT_TOP + VIEWPORT_HEIGHT;
-    static constexpr auto VIEWPORT_HORIZON = VIEWPORT_TOP + (VIEWPORT_HEIGHT / 2);
-    static constexpr auto MINIMUM_INTERSECTION_DISTANCE = 1.0f; //Used to avoid a division by zero. Original hardcoded value: 1e-10, or 1.000000013f.
+    static constexpr auto VIEWPORT_HORIZON = VIEWPORT_TOP + (VIEWPORT_HEIGHT / 2);    
     static constexpr auto OVERBOARD = (CELL_WIDTH+CELL_HEIGHT)/4; // the absolute closest a player can get to a wall  
     static constexpr auto TWO_PI = 2.0f * 3.141592654f;
     static constexpr auto WORLD_ROWS = 16;
@@ -114,7 +113,10 @@ class Ray {
     static constexpr auto FIRST_VALID_CELL = 1; //to shortcut collision testing we can check against the map boundary walls. Helps with mouse interaction and for Q&D respawn when stuck in a wall.
     static constexpr auto LAST_VALID_CELL = WORLD_ROWS-2; //0 == wall, 15 == wall. so if our position is below or above the valid spaces, we can bail without performing lookup. TODO: this should be part of the map data. 
     static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
-    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT);
+    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT); 
+    static constexpr auto test = Utils::nextPowerOfTwo(WORLD_WIDTH);
+    //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be based on an even power-of-two >= WORLD_WIDTH. Used to quickly round our position to nearest cell wall using bitwise AND.
+    static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_WIDTH) ? WORLD_WIDTH : Utils::nextPowerOfTwo(WORLD_WIDTH))-CELL_WIDTH;                
     static constexpr auto MAP_WIDTH = 256; //target width of the minimap, in pixels. 
     static constexpr auto MAP_SCALE_FACTOR = static_cast<int>(1.0f / (static_cast<float>(MAP_WIDTH) / WORLD_WIDTH)); //could invert this (eg: *0.25 instead of /4), but I'll take this ugly casting business once to get integer math throughout the runtime.
     static constexpr auto MAP_HEIGHT = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
@@ -179,8 +181,8 @@ class Ray {
             //asymtotic rays goes to infinity,
             //this test was originally handled in the ray caster inner loop, but never triggered during development
             //hence I moved the check to build time and if they ever trigger we'll have to ad back the if statements to the caster.
-            SDL_assert(std::fabs(y_step[ang]) != 0 && "Test for asymtotic ray on the y-axis while building lookup tables.");
-            SDL_assert(std::fabs(x_step[ang]) != 0 && "Test for asymtotic ray on the x-axis while building lookup tables.");
+            SDL_assert(std::fabs(y_step[ang]) != 0 && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
+            SDL_assert(std::fabs(x_step[ang]) != 0 && "Potential asymtotic ray on the x-axis produced while building lookup tables.");
             
             inv_cos_table[ang] = 1.0f / std::cos(rad_angle);
             inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
@@ -260,17 +262,17 @@ class Ray {
             int next_y_cell; // used to figure out the quadrant of the ray
             if (view_angle >= ANGLE_0 && view_angle < ANGLE_180) {
                 // compute first horizontal line that could be intersected with ray. note: it will be above player
-                //y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT);// compute delta to get to next horizontal line                
-                y_bound = (CELL_HEIGHT + (y & 0xFFC0)); //Optimization. Any integral number modulo N is equivalent to the same number logically combined with (N-1) using the AND function. In other words: x % 64 == x AND 63.
-                y_delta = CELL_HEIGHT;
+                //y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
+                y_bound = (CELL_HEIGHT + (y & MAGIC_CONSTANT)); //Optimization. Achieves same as above. 
+                y_delta = CELL_HEIGHT; // compute delta to get to next horizontal line                
                 xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin
                 next_y_cell = 0; // set cell delta
             }
             else {
                 // compute first horizontal line that could be intersected with ray. note: it will be below player
-                //y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); // compute delta to get to next horizontal line                
-                y_bound = (y & 0xFFC0); //Optimization. Any integral number modulo N is equivalent to the same number logically combined with (N-1) using the AND function. In other words: x % 64 == x AND 63.
-                y_delta = -CELL_HEIGHT; 
+                //y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
+                y_bound = (y & MAGIC_CONSTANT); //Optimization, same as above.
+                y_delta = -CELL_HEIGHT; // compute delta to get to next horizontal line                
                 xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
                 next_y_cell = -1; // set cell delta
             }
@@ -283,16 +285,16 @@ class Ray {
             // compute first y intersection. need to know which half plane we are casting from relative to X axis
             if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) {
                 // compute first vertical line that could be intersected with ray. note: it will be to the right of player
-                //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);
-                x_bound = (CELL_WIDTH + (x & 0xFFC0)); //TODO: why 0xFFC0 (65472, or top ten binary digits)
+                //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);  //round x to nearest CELL_WIDTH (power-of-2)
+                x_bound = (CELL_WIDTH + (x & MAGIC_CONSTANT)); //Optmization of the above.
                 x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
                 yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
                 next_x_cell = 0; // set cell delta
             }
             else {
                 // compute first vertical line that could be intersected with ray. note: it will be to the left of player
-                //x_bound = CELL_WIDTH * (x / CELL_WIDTH);
-                x_bound = (x & 0xFFC0); //TODO: why 0xFFC0 (65472, or top ten binary digits)
+                //x_bound = CELL_WIDTH * (x / CELL_WIDTH); //round x to nearest CELL_WIDTH (power-of-2)
+                x_bound = (x & MAGIC_CONSTANT); //Optmization of the above.
                 x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
                 yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
                 next_x_cell = -1; // set cell delta
@@ -314,8 +316,8 @@ class Ray {
                 if (!xray_intersection_found) {                  
                     // compute current map position to inspect
                     //const auto cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
-                    const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization shift instead of divide, might help the Arduboy
-                    //const int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS); //TODO: this is a hack. YI goes out of bounds when rotating! 
+                    const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization: shift instead of divide, might help the Arduboy
+                    //const int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS);
                     const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;  //Optimization                  
 
                     // test if there is a block where the current x ray is intersecting
@@ -371,12 +373,13 @@ class Ray {
                 }
                 sline(x, y, xi_save, yb_save, color);
             }            
-            const auto height = cos_table[ray] / min_dist; // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
-            const auto top = Utils::clamp(VIEWPORT_HORIZON - static_cast<int>(height / 2.0f), VIEWPORT_TOP, VIEWPORT_BOTTOM); // compute the top and bottom of the sliver (with crude clipping),
-            const auto bottom = Utils::clamp(static_cast<int>(top + height), VIEWPORT_TOP, VIEWPORT_BOTTOM); // slivers are drawn symmetrically around the viewport horizon.             
+            const int height = static_cast<int>(cos_table[ray] / min_dist); // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
+            const int top = Utils::clamp(VIEWPORT_HORIZON - (height >> 1), VIEWPORT_TOP, VIEWPORT_BOTTOM); //Optmization: height >> 1 == height / 2.  compute the top and bottom of the sliver (with crude clipping),
+            const auto bottom = Utils::clamp(top + height, VIEWPORT_TOP, VIEWPORT_BOTTOM); // slivers are drawn symmetrically around the viewport horizon.             
+            const int sliver_x = (VIEWPORT_RIGHT - ray);
             _setcolor(color);
-            _moveto((VIEWPORT_RIGHT - ray), top);
-            _lineto((VIEWPORT_RIGHT - ray), bottom);
+            _moveto(sliver_x, top);
+            _lineto(sliver_x, bottom);
 
             //move on to next ray
             if (++view_angle >= ANGLE_360){
