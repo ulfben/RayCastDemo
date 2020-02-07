@@ -99,7 +99,7 @@ class Ray {
     static constexpr auto CELL_WIDTH_FP = Utils::log2(CELL_WIDTH); // log base 2 of 64 (used for quick division)
     static constexpr auto CELL_HEIGHT_FP = Utils::log2(CELL_HEIGHT);
     //320x240@60fov = K15000, 128x64@60fov = K7000
-    static constexpr auto K = 7000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
+    static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
     static constexpr auto ANGLE_270 = static_cast<int>(ANGLE_360 * 0.75f); //down
     static constexpr auto ANGLE_180 = ANGLE_360 / 2; //left
     static constexpr auto ANGLE_90 = ANGLE_180 / 2; //up
@@ -242,160 +242,318 @@ class Ray {
         }
     }
         
-    void Ray_Caster(int x, int y, int view_angle) {
-        // This function casts out RAY_COUNT rays from the viewer and builds up the video
-        // display based on the intersections with the walls. The rays are
-        // cast in such a way that they all fit into a FOV field of view
-        // a ray is cast and then the distance to the first horizontal and vertical
-        // edge that has a cell in it is recorded.  The intersection that has the
-        // closer distance to the user is the one that is used to draw the bitmap.
-        // the inverse of that distance is used to compute the height of the "sliver" of texture
-        // or line that will be drawn on the screen        
+    struct ray_data {
+        int b_save = 0; // record intersections with cell boundaries        
+        int i_save = 0; // used to save exact x and y intersection points        
+        float dist = 0.0f; // the distance of the x and y ray intersections from        
+    };
 
-         // SECTION 1 /////////////////////////////////////////////////////////
-        // compute starting angle from player.  Field of view is FOV angles, subtract half of that from the current view angle
-        if ((view_angle -= HALF_FOV_ANGLE) < 0){
-            view_angle = ANGLE_360 + view_angle;
+    //void Ray_Caster(int x, int y, int view_angle) {
+    //    // This function casts out RAY_COUNT rays from the viewer and builds up the video
+    //    // display based on the intersections with the walls. The rays are
+    //    // cast in such a way that they all fit into a FOV field of view
+    //    // a ray is cast and then the distance to the first horizontal and vertical
+    //    // edge that has a cell in it is recorded.  The intersection that has the
+    //    // closer distance to the user is the one that is used to draw the bitmap.
+    //    // the inverse of that distance is used to compute the height of the "sliver" of texture
+    //    // or line that will be drawn on the screen        
+
+    //     // SECTION 1 /////////////////////////////////////////////////////////
+    //    // compute starting angle from player.  Field of view is FOV angles, subtract half of that from the current view angle
+    //    if ((view_angle -= HALF_FOV_ANGLE) < 0){
+    //        view_angle = ANGLE_360 + view_angle;
+    //    }
+    //    for (int ray = 0; ray < RAY_COUNT; ray++) {
+    //        // SECTION 2 /////////////////////////////////////////////////////////
+    //        // compute first x intersection.  need to know which half plane we are casting from relative to Y axis
+    //        float xi;  // used to track the x intersections
+    //        int y_bound;  // the next vertical and horizontal intersection point    
+    //        int y_delta; // the amount needed to move to get to the next cell position
+    //        int next_y_cell; // used to figure out the quadrant of the ray
+    //        if (view_angle >= ANGLE_0 && view_angle < ANGLE_180) {
+    //            // compute first horizontal line that could be intersected with ray. note: it will be above player
+    //            //y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
+    //            y_bound = (CELL_HEIGHT + (y & MAGIC_CONSTANT)); //Optimization. Achieves same as above. 
+    //            y_delta = CELL_HEIGHT; // compute delta to get to next horizontal line                
+    //            xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin
+    //            next_y_cell = 0; // set cell delta
+    //        }
+    //        else {
+    //            // compute first horizontal line that could be intersected with ray. note: it will be below player
+    //            //y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
+    //            y_bound = (y & MAGIC_CONSTANT); //Optimization, same as above.
+    //            y_delta = -CELL_HEIGHT; // compute delta to get to next horizontal line                
+    //            xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
+    //            next_y_cell = -1; // set cell delta
+    //        }
+
+    //        float yi;    // used to track the y intersections  
+    //        int x_bound; // the next vertical and horizontal intersection point   
+    //        int x_delta; // the amount needed to move to get to the next cell position
+    //        int next_x_cell; // used to figure out the quadrant of the ray            
+    //        // SECTION 3 /////////////////////////////////////////////////////////
+    //        // compute first y intersection. need to know which half plane we are casting from relative to X axis
+    //        if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) {
+    //            // compute first vertical line that could be intersected with ray. note: it will be to the right of player
+    //            //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);  //round x to nearest CELL_WIDTH (power-of-2)
+    //            x_bound = (CELL_WIDTH + (x & MAGIC_CONSTANT)); //Optmization of the above.
+    //            x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
+    //            yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
+    //            next_x_cell = 0; // set cell delta
+    //        }
+    //        else {
+    //            // compute first vertical line that could be intersected with ray. note: it will be to the left of player
+    //            //x_bound = CELL_WIDTH * (x / CELL_WIDTH); //round x to nearest CELL_WIDTH (power-of-2)
+    //            x_bound = (x & MAGIC_CONSTANT); //Optmization of the above.
+    //            x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
+    //            yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
+    //            next_x_cell = -1; // set cell delta
+    //        }
+
+    //        // SECTION 4 /////////////////////////////////////////////////////////
+    //        // begin cast
+    //        int casting = 2; // two rays to cast simultaneously
+    //        bool xray_intersection_found = false;
+    //        bool yray_intersection_found = false;
+    //        int xb_save = 0; // record intersections with cell boundaries
+    //        int yb_save = 0;
+    //        int xi_save = 0; // used to save exact x and y intersection points
+    //        int yi_save = 0;
+    //        float dist_x = 0.0f; // the distance of the x and y ray intersections from
+    //        float dist_y = 0.0f; // the viewpoint
+    //        while (casting) {
+    //            // continue casting each ray in parallel
+    //            if (!xray_intersection_found) {                  
+    //                // compute current map position to inspect
+    //                //const auto cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
+    //                const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization: shift instead of divide, might help the Arduboy
+    //                //const int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS);
+    //                const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;  //Optimization                  
+
+    //                // test if there is a block where the current x ray is intersecting
+    //                if (isWall(cell_x, cell_y)) {
+    //                    dist_x = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
+    //                    yi_save = static_cast<int>(yi);
+    //                    xb_save = x_bound;
+    //                    xray_intersection_found = true;
+    //                    casting--;
+    //                } else {
+    //                    yi += y_step[view_angle]; // compute next Y intercept
+    //                }
+    //            }
+
+    //            // SECTION 5 /////////////////////////////////////////////////////////
+    //            if (!yray_intersection_found) {                 
+    //                // compute current map position to inspect
+    //                //const auto  cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
+    //                const int cell_x = static_cast<int>(xi) >> CELL_WIDTH_FP;   // the current cell that the ray is in
+    //                //const auto  cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
+    //                const int cell_y = ((y_bound + next_y_cell) >> CELL_HEIGHT_FP);
+
+    //                // test if there is a block where the current y ray is intersecting
+    //                if (isWall(cell_x, cell_y)) {
+    //                    dist_y = (xi - x) * inv_cos_table[view_angle]; // compute distance
+    //                    xi_save = static_cast<int>(xi);
+    //                    yb_save = y_bound;
+    //                    yray_intersection_found = true;
+    //                    casting--;
+    //                } else {
+    //                    xi += x_step[view_angle]; // compute next X intercept
+    //                }
+    //            }
+    //            x_bound += x_delta; // move to next possible intersection points
+    //            y_bound += y_delta;
+    //        }
+
+    //        // SECTION 6 /////////////////////////////////////////////////////////
+    //        // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one was closer and then render it           
+    //        // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K.
+    //        // think of K as a combination of view distance and aspect ratio. Pick a value that looks good (in my case: that makes the block on screen look square). (p.213)            
+    //        SDL_Color color = White; //white == sliver between wall sections
+    //        const float min_dist = (dist_x < dist_y) ? dist_x : dist_y;
+    //        if (dist_x < dist_y) { // there was a vertical wall closer than the horizontal                
+    //            if (yi_save % CELL_HEIGHT > 1) {
+    //                color = LightGreen;
+    //            }
+    //            if constexpr (Config::hasMinimap()) {
+    //                sline(x, y, xb_save, yi_save, color);
+    //            }
+    //        }
+    //        else { // must have hit a horizontal wall first                            
+    //            if (xi_save % CELL_WIDTH > 1) {
+    //                color = DarkGreen;
+    //            }
+    //            if constexpr (Config::hasMinimap()) {
+    //                sline(x, y, xi_save, yb_save, color);
+    //            }
+    //        }            
+    //        const int height = static_cast<int>(cos_table[ray] / min_dist); // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
+    //        const int top = Utils::clamp(VIEWPORT_HORIZON - (height >> 1), VIEWPORT_TOP, VIEWPORT_BOTTOM); //Optmization: height >> 1 == height / 2.  compute the top and bottom of the sliver (with crude clipping),
+    //        const auto bottom = Utils::clamp(top + height, VIEWPORT_TOP, VIEWPORT_BOTTOM); // slivers are drawn symmetrically around the viewport horizon.             
+    //        const int sliver_x = (VIEWPORT_RIGHT - ray);
+    //        _setcolor(color);
+    //        _moveto(sliver_x, top);
+    //        _lineto(sliver_x, bottom);
+
+    //        //move on to next ray
+    //        if (++view_angle >= ANGLE_360){
+    //            view_angle = 0;//reset angle back to zero
+    //        }
+    //    }
+    //} // end Ray_Caster
+
+void Ray_Caster(int x, int y, int view_angle) {
+    // This function casts out RAY_COUNT rays from the viewer and builds up the video
+    // display based on the intersections with the walls. The rays are
+    // cast in such a way that they all fit into a FOV field of view
+    // a ray is cast and then the distance to the first horizontal and vertical
+    // edge that has a cell in it is recorded.  The intersection that has the
+    // closer distance to the user is the one that is used to draw the bitmap.
+    // the inverse of that distance is used to compute the height of the "sliver" of texture
+    // or line that will be drawn on the screen        
+
+     // SECTION 1 /////////////////////////////////////////////////////////
+    // compute starting angle from player.  Field of view is FOV angles, subtract half of that from the current view angle
+    if ((view_angle -= HALF_FOV_ANGLE) < 0) {
+        view_angle = ANGLE_360 + view_angle;
+    }
+    for (int ray = 0; ray < RAY_COUNT; ray++) {
+        // SECTION 2 /////////////////////////////////////////////////////////
+        // compute first x intersection.  need to know which half plane we are casting from relative to Y axis
+        ray_data xray = cast_x(x, y, view_angle);
+        ray_data yray = cast_y(x, y, view_angle);        
+        // SECTION 6 /////////////////////////////////////////////////////////
+        // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one was closer and then render it           
+        // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K.
+        // think of K as a combination of view distance and aspect ratio. Pick a value that looks good (in my case: that makes the block on screen look square). (p.213)            
+        SDL_Color color = White; //white == sliver between wall sections
+        
+        const float min_dist = (xray.dist < yray.dist) ? xray.dist : yray.dist;
+        if (xray.dist < yray.dist) { // there was a vertical wall closer than the horizontal                
+            if (xray.i_save % CELL_HEIGHT > 1) {
+                color = LightGreen;
+            }
+            if constexpr (Config::hasMinimap()) {
+                sline(x, y, xray.b_save, yray.i_save, color);
+            }
         }
-        for (int ray = 0; ray < RAY_COUNT; ray++) {
-            // SECTION 2 /////////////////////////////////////////////////////////
-            // compute first x intersection.  need to know which half plane we are casting from relative to Y axis
-            float xi;  // used to track the x intersections
-            int y_bound;  // the next vertical and horizontal intersection point    
-            int y_delta; // the amount needed to move to get to the next cell position
-            int next_y_cell; // used to figure out the quadrant of the ray
-            if (view_angle >= ANGLE_0 && view_angle < ANGLE_180) {
-                // compute first horizontal line that could be intersected with ray. note: it will be above player
-                //y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
-                y_bound = (CELL_HEIGHT + (y & MAGIC_CONSTANT)); //Optimization. Achieves same as above. 
-                y_delta = CELL_HEIGHT; // compute delta to get to next horizontal line                
-                xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin
-                next_y_cell = 0; // set cell delta
+        else { // must have hit a horizontal wall first                            
+            if (yray.i_save % CELL_WIDTH > 1) {
+                color = DarkGreen;
+            }
+            if constexpr (Config::hasMinimap()) {
+                sline(x, y, xray.i_save, yray.b_save, color);
+            }
+        }
+        const int height = static_cast<int>(cos_table[ray] / min_dist); // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
+        const int top = Utils::clamp(VIEWPORT_HORIZON - (height >> 1), VIEWPORT_TOP, VIEWPORT_BOTTOM); //Optmization: height >> 1 == height / 2.  compute the top and bottom of the sliver (with crude clipping),
+        const auto bottom = Utils::clamp(top + height, VIEWPORT_TOP, VIEWPORT_BOTTOM); // slivers are drawn symmetrically around the viewport horizon.             
+        const int sliver_x = (VIEWPORT_RIGHT - ray);
+        _setcolor(color);
+        _moveto(sliver_x, top);
+        _lineto(sliver_x, bottom);
+
+        //move on to next ray
+        if (++view_angle >= ANGLE_360) {
+            view_angle = 0;//reset angle back to zero
+        }
+    }
+} // end Ray_Caster
+
+    ray_data cast_x(int x, int y, int view_angle) noexcept  {
+        ray_data result;
+        float yi;    // used to track the y intersections  
+        int x_bound; // the next vertical and horizontal intersection point   
+        int x_delta; // the amount needed to move to get to the next cell position
+        int next_x_cell; // used to figure out the quadrant of the ray            
+        // SECTION 3 /////////////////////////////////////////////////////////
+        // compute first y intersection. need to know which half plane we are casting from relative to X axis
+        if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) {
+            // compute first vertical line that could be intersected with ray. note: it will be to the right of player
+            //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);  //round x to nearest CELL_WIDTH (power-of-2)
+            x_bound = (CELL_WIDTH + (x & MAGIC_CONSTANT)); //Optmization of the above.
+            x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
+            yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
+            next_x_cell = 0; // set cell delta
+        }
+        else {
+            // compute first vertical line that could be intersected with ray. note: it will be to the left of player
+            //x_bound = CELL_WIDTH * (x / CELL_WIDTH); //round x to nearest CELL_WIDTH (power-of-2)
+            x_bound = (x & MAGIC_CONSTANT); //Optmization of the above.
+            x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
+            yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
+            next_x_cell = -1; // set cell delta
+        }
+        // SECTION 4 /////////////////////////////////////////////////////////              
+        int xb_save = 0; // record intersections with cell boundaries
+        int yb_save = 0;
+        int xi_save = 0; // used to save exact x and y intersection points
+        int yi_save = 0;
+        float dist_x = 0.0f; // the distance of the x and y ray intersections from
+        float dist_y = 0.0f; // the viewpoint
+        while (true) {
+            // continue casting each ray in parallel
+            const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization: shift instead of divide, might help the Arduboy
+            //const int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS);
+            const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;  //Optimization                  
+            // test if there is a block where the current x ray is intersecting
+            if (isWall(cell_x, cell_y)) {
+                result.dist = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
+                result.b_save = x_bound;
+                result.i_save = static_cast<int>(yi);   
+                return result;
             }
             else {
-                // compute first horizontal line that could be intersected with ray. note: it will be below player
-                //y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
-                y_bound = (y & MAGIC_CONSTANT); //Optimization, same as above.
-                y_delta = -CELL_HEIGHT; // compute delta to get to next horizontal line                
-                xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
-                next_y_cell = -1; // set cell delta
-            }
-
-            float yi;    // used to track the y intersections  
-            int x_bound; // the next vertical and horizontal intersection point   
-            int x_delta; // the amount needed to move to get to the next cell position
-            int next_x_cell; // used to figure out the quadrant of the ray            
-            // SECTION 3 /////////////////////////////////////////////////////////
-            // compute first y intersection. need to know which half plane we are casting from relative to X axis
-            if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) {
-                // compute first vertical line that could be intersected with ray. note: it will be to the right of player
-                //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);  //round x to nearest CELL_WIDTH (power-of-2)
-                x_bound = (CELL_WIDTH + (x & MAGIC_CONSTANT)); //Optmization of the above.
-                x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
-                yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
-                next_x_cell = 0; // set cell delta
-            }
-            else {
-                // compute first vertical line that could be intersected with ray. note: it will be to the left of player
-                //x_bound = CELL_WIDTH * (x / CELL_WIDTH); //round x to nearest CELL_WIDTH (power-of-2)
-                x_bound = (x & MAGIC_CONSTANT); //Optmization of the above.
-                x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
-                yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
-                next_x_cell = -1; // set cell delta
-            }
-
-            // SECTION 4 /////////////////////////////////////////////////////////
-            // begin cast
-            int casting = 2; // two rays to cast simultaneously
-            bool xray_intersection_found = false;
-            bool yray_intersection_found = false;
-            int xb_save = 0; // record intersections with cell boundaries
-            int yb_save = 0;
-            int xi_save = 0; // used to save exact x and y intersection points
-            int yi_save = 0;
-            float dist_x = 0.0f; // the distance of the x and y ray intersections from
-            float dist_y = 0.0f; // the viewpoint
-            while (casting) {
-                // continue casting each ray in parallel
-                if (!xray_intersection_found) {                  
-                    // compute current map position to inspect
-                    //const auto cell_x = ((x_bound + next_x_cell) / CELL_WIDTH);   // the current cell that the ray is in
-                    const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization: shift instead of divide, might help the Arduboy
-                    //const int cell_y = Utils::clamp(static_cast<int>(yi / CELL_HEIGHT), 0, WORLD_ROWS);
-                    const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;  //Optimization                  
-
-                    // test if there is a block where the current x ray is intersecting
-                    if (isWall(cell_x, cell_y)) {
-                        dist_x = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
-                        yi_save = static_cast<int>(yi);
-                        xb_save = x_bound;
-                        xray_intersection_found = true;
-                        casting--;
-                    } else {
-                        yi += y_step[view_angle]; // compute next Y intercept
-                    }
-                }
-
-                // SECTION 5 /////////////////////////////////////////////////////////
-                if (!yray_intersection_found) {                 
-                    // compute current map position to inspect
-                    //const auto  cell_x = static_cast<int>(xi / CELL_WIDTH);   // the current cell that the ray is in
-                    const int cell_x = static_cast<int>(xi) >> CELL_WIDTH_FP;   // the current cell that the ray is in
-                    //const auto  cell_y = static_cast<int>((y_bound + next_y_cell) / CELL_HEIGHT);
-                    const int cell_y = ((y_bound + next_y_cell) >> CELL_HEIGHT_FP);
-
-                    // test if there is a block where the current y ray is intersecting
-                    if (isWall(cell_x, cell_y)) {
-                        dist_y = (xi - x) * inv_cos_table[view_angle]; // compute distance
-                        xi_save = static_cast<int>(xi);
-                        yb_save = y_bound;
-                        yray_intersection_found = true;
-                        casting--;
-                    } else {
-                        xi += x_step[view_angle]; // compute next X intercept
-                    }
-                }
-                x_bound += x_delta; // move to next possible intersection points
-                y_bound += y_delta;
-            }
-
-            // SECTION 6 /////////////////////////////////////////////////////////
-            // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one was closer and then render it           
-            // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K.
-            // think of K as a combination of view distance and aspect ratio. Pick a value that looks good (in my case: that makes the block on screen look square). (p.213)            
-            SDL_Color color = White; //white == sliver between wall sections
-            const float min_dist = (dist_x < dist_y) ? dist_x : dist_y;
-            if (dist_x < dist_y) { // there was a vertical wall closer than the horizontal                
-                if (yi_save % CELL_HEIGHT > 1) {
-                    color = LightGreen;
-                }
-                if constexpr (Config::hasMinimap()) {
-                    sline(x, y, xb_save, yi_save, color);
-                }
-            }
-            else { // must have hit a horizontal wall first                            
-                if (xi_save % CELL_WIDTH > 1) {
-                    color = DarkGreen;
-                }
-                if constexpr (Config::hasMinimap()) {
-                    sline(x, y, xi_save, yb_save, color);
-                }
+                yi += y_step[view_angle]; // compute next Y intercept
             }            
-            const int height = static_cast<int>(cos_table[ray] / min_dist); // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
-            const int top = Utils::clamp(VIEWPORT_HORIZON - (height >> 1), VIEWPORT_TOP, VIEWPORT_BOTTOM); //Optmization: height >> 1 == height / 2.  compute the top and bottom of the sliver (with crude clipping),
-            const auto bottom = Utils::clamp(top + height, VIEWPORT_TOP, VIEWPORT_BOTTOM); // slivers are drawn symmetrically around the viewport horizon.             
-            const int sliver_x = (VIEWPORT_RIGHT - ray);
-            _setcolor(color);
-            _moveto(sliver_x, top);
-            _lineto(sliver_x, bottom);
-
-            //move on to next ray
-            if (++view_angle >= ANGLE_360){
-                view_angle = 0;//reset angle back to zero
-            }
+            x_bound += x_delta; // move to next possible intersection points
+        }        
+        return result;          
+    } // end cast_x
+  
+    ray_data cast_y(int x, int y, int view_angle) {
+        ray_data result;
+        float xi;  // used to track the x intersections
+        int y_bound;  // the next vertical and horizontal intersection point    
+        int y_delta; // the amount needed to move to get to the next cell position
+        int next_y_cell; // used to figure out the quadrant of the ray
+        if (view_angle >= ANGLE_0 && view_angle < ANGLE_180) {
+            // compute first horizontal line that could be intersected with ray. note: it will be above player
+            //y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
+            y_bound = (CELL_HEIGHT + (y & MAGIC_CONSTANT)); //Optimization. Achieves same as above. 
+            y_delta = CELL_HEIGHT; // compute delta to get to next horizontal line                
+            xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin
+            next_y_cell = 0; // set cell delta
         }
-    } // end Ray_Caster
-      
+        else {
+            // compute first horizontal line that could be intersected with ray. note: it will be below player
+            //y_bound = CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
+            y_bound = (y & MAGIC_CONSTANT); //Optimization, same as above.
+            y_delta = -CELL_HEIGHT; // compute delta to get to next horizontal line                
+            xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
+            next_y_cell = -1; // set cell delta
+        }
+        // SECTION 4 /////////////////////////////////////////////////////////
+        // begin cast               
+        while(true){            
+            // SECTION 5 /////////////////////////////////////////////////////////        
+            const int cell_x = static_cast<int>(xi) >> CELL_WIDTH_FP;   // the current cell that the ray is in             
+            const int cell_y = ((y_bound + next_y_cell) >> CELL_HEIGHT_FP);
+            if (isWall(cell_x, cell_y)) {
+                result.dist = (xi - x) * inv_cos_table[view_angle]; // compute distance
+                result.b_save = y_bound;
+                result.i_save = static_cast<int>(xi);                                        
+                return result;
+            }
+            else {
+                xi += x_step[view_angle]; // compute next X intercept
+            }        
+            y_bound += y_delta;   
+        }
+        return result;
+    } // end y_cast
+
+
     void clearWindow() {
         _setcolor(Black);
         _r.clear();
