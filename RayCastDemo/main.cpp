@@ -1,17 +1,13 @@
 #define SDL_MAIN_HANDLED
 #include <iostream>
 #include <string_view>
+#include "Config.h"
 #include "src/SDLSystem.h"
 #include "src/Renderer.h"
 #include "src/Window.h"
 #include "src/InputManager.h"
 #include "src/Ray.h"
-namespace Config {
-	using namespace std::literals::string_view_literals;
-	static const std::string_view TITLE = "Ray Caster Demo (4th iteration)"sv;	
-	static const int WIN_WIDTH = 640;	
-	static const int WIN_HEIGHT = 480;		
-};
+
 
 int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 	try {

@@ -1,10 +1,14 @@
 #pragma once
 #include <array>
 #include <cmath>
+#include "Config.h"
 #include "Renderer.h"
 #include "InputManager.h"
 #include "SDLSystem.h"
 #include "Utils.h"
+
+
+
 class Ray {
     enum class RectStyle {
         OUTLINE,
@@ -77,12 +81,10 @@ class Ray {
             _r.drawRect(rect);
         }
     }
-    
-    static constexpr auto WIN_WIDTH = 640;
-    static constexpr auto WIN_HEIGHT = 480;
+ 
     static constexpr auto MAP_WIDTH = 256; //target width of the minimap, in pixels. 
-    static constexpr auto VIEWPORT_WIDTH = 128; //TODO: Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
-    static constexpr auto VIEWPORT_HEIGHT = 64;
+    static constexpr auto VIEWPORT_WIDTH = 320; //TODO: Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
+    static constexpr auto VIEWPORT_HEIGHT = 240;
     static constexpr auto RAY_COUNT = VIEWPORT_WIDTH; //one ray per column of screen space (horizontal resolution)    
     static constexpr auto FOV_DEGREES = 60; //Field of View, in degrees. We'll need to break these into RAY_COUNT sub-angles and cast a ray for each angle. We'll be using a lookup table for that        
     static constexpr auto TABLE_SIZE = static_cast<int>(VIEWPORT_WIDTH * (360.0f / FOV_DEGREES)); //how many elements we need to store the slope of every possible ray that can be projected.
@@ -103,8 +105,8 @@ class Ray {
     static constexpr auto ANGLE_90 = ANGLE_180 / 2; //up
     static constexpr auto ANGLE_45 = ANGLE_90 / 2; //up and right
     static constexpr auto ANGLE_0 = 0;  //also right (same as 360)
-    static constexpr auto VIEWPORT_LEFT = MAP_WIDTH + (((WIN_WIDTH-MAP_WIDTH)/2)- (VIEWPORT_WIDTH/2)); //center between map and screen edge
-    static constexpr auto VIEWPORT_TOP = WIN_HEIGHT / 2 - VIEWPORT_HEIGHT / 2;
+    static constexpr auto VIEWPORT_LEFT = MAP_WIDTH + (((Config::WIN_WIDTH-MAP_WIDTH)/2)- (VIEWPORT_WIDTH/2)); //center between map and screen edge
+    static constexpr auto VIEWPORT_TOP = Config::WIN_HEIGHT / 2 - VIEWPORT_HEIGHT / 2;
     static constexpr auto VIEWPORT_RIGHT = VIEWPORT_LEFT + VIEWPORT_WIDTH;
     static constexpr auto VIEWPORT_BOTTOM = VIEWPORT_TOP + VIEWPORT_HEIGHT;
     static constexpr auto VIEWPORT_HORIZON = VIEWPORT_TOP + (VIEWPORT_HEIGHT / 2);    
@@ -196,7 +198,7 @@ class Ray {
             cos_table[index] = (K / std::cos(rad_angle));
         }
     }
-
+    
     void sline(int x1, int y1, int x2, int y2, const SDL_Color& color) noexcept {
         // used a a diagnostic function to draw a scaled line
         x1 = x1 / MAP_SCALE_FACTOR;
@@ -219,7 +221,8 @@ class Ray {
         _setpixel(x + 1, y + 1);
     }
 
-    void Draw_2D_Map() const noexcept {       
+    void Draw_2D_Map() const noexcept {  
+        if constexpr (false == Config::hasMinimap()) { return;  }
         for (int row = 0; row < WORLD_ROWS; row++) {
             const auto top = row * SCALED_CELL_HEIGHT;
             const auto bottom = top + SCALED_CELL_HEIGHT - 1;
@@ -366,13 +369,17 @@ class Ray {
                 if (yi_save % CELL_HEIGHT > 1) {
                     color = LightGreen;
                 }
-                sline(x, y, xb_save, yi_save, color);
+                if constexpr (Config::hasMinimap()) {
+                    sline(x, y, xb_save, yi_save, color);
+                }
             }
             else { // must have hit a horizontal wall first                            
                 if (xi_save % CELL_WIDTH > 1) {
                     color = DarkGreen;
                 }
-                sline(x, y, xi_save, yb_save, color);
+                if constexpr (Config::hasMinimap()) {
+                    sline(x, y, xi_save, yb_save, color);
+                }
             }            
             const int height = static_cast<int>(cos_table[ray] / min_dist); // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
             const int top = Utils::clamp(VIEWPORT_HORIZON - (height >> 1), VIEWPORT_TOP, VIEWPORT_BOTTOM); //Optmization: height >> 1 == height / 2.  compute the top and bottom of the sliver (with crude clipping),
@@ -501,8 +508,9 @@ public:
             _input.update();
             clearWindow();
             updateViewPoint();
-            checkCollisions();            
-            Draw_2D_Map();            
+            checkCollisions();
+            if constexpr (Config::hasMinimap()) { Draw_2D_Map(); }
+            
             Ray_Caster(_viewPoint.x, _viewPoint.y, _viewPoint.angle);
             _r.present();
             SDL_Delay(16);
