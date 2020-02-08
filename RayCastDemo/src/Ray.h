@@ -116,7 +116,6 @@ class Ray {
     static constexpr auto LAST_VALID_CELL = WORLD_ROWS-2; //0 == wall, 15 == wall. so if our position is below or above the valid spaces, we can bail without performing lookup. TODO: this should be part of the map data. 
     static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
     static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT); 
-    static constexpr auto test = Utils::nextPowerOfTwo(WORLD_WIDTH);
     //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be based on an even power-of-two >= WORLD_WIDTH. Used to quickly round our position to nearest cell wall using bitwise AND.
     static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_WIDTH) ? WORLD_WIDTH : Utils::nextPowerOfTwo(WORLD_WIDTH))-CELL_WIDTH;                
     static constexpr auto MAP_SCALE_FACTOR = static_cast<int>(1.0f / (static_cast<float>(MAP_WIDTH) / WORLD_WIDTH)); //could invert this (eg: *0.25 instead of /4), but I'll take this ugly casting business once to get integer math throughout the runtime.
@@ -267,7 +266,7 @@ class Ray {
                     color = LightGreen;
                 }
                 if constexpr (Config::hasMinimap()) {
-                    sline(x, y, xray.boundary, yray.intersection, color);
+                    sline(x, y, xray.boundary, xray.intersection, color);
                 }
             }
             else { // must have hit a horizontal wall first                            
@@ -275,7 +274,7 @@ class Ray {
                     color = DarkGreen;
                 }
                 if constexpr (Config::hasMinimap()) {
-                    sline(x, y, xray.intersection, yray.boundary, color);
+                    sline(x, y, yray.intersection, yray.boundary, color);
                 }
             }
             // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K which has been pre-multiplied into the view-filter lookup-table.
@@ -462,8 +461,8 @@ class Ray {
     }
 
     inline constexpr void centerPlayerInCell(int cellx, int celly) noexcept {
-        _viewPoint.x = cellx * CELL_WIDTH  + (CELL_WIDTH / 2);
-        _viewPoint.y = celly * CELL_HEIGHT + (CELL_HEIGHT / 2);
+        _viewPoint.x = cellx * CELL_WIDTH  + (CELL_WIDTH >> 1);
+        _viewPoint.y = celly * CELL_HEIGHT + (CELL_HEIGHT >> 1);
     }
 
 public:
