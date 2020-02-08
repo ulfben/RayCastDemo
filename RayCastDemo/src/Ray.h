@@ -16,6 +16,12 @@ class Ray {
         int x = 0, y = 0, angle = 0;
         float dx = 0.0f, dy = 0.0f;        
     };
+    struct RayData {
+        int boundary = 0; // record intersections with cell boundaries        
+        int intersection = 0; // used to save exact x and y intersection points        
+        float distance = 0.0f; // the distance of the x and y ray intersections from  
+        bool operator <(const RayData& that) const noexcept { return distance < that.distance; };
+    };
     
     //declare SDL_Color values for each color in the original LUT
     static constexpr SDL_Color Black = { 0, 0, 0 };
@@ -239,13 +245,6 @@ class Ray {
         }
     }
         
-    struct ray_data {
-        int boundary = 0; // record intersections with cell boundaries        
-        int intersection = 0; // used to save exact x and y intersection points        
-        float distance = 0.0f; // the distance of the x and y ray intersections from  
-        bool operator <(const ray_data& that) const noexcept { return distance < that.distance; };
-    };
-
     void Ray_Caster(int x, int y, int view_angle) noexcept {
         // This function casts out RAY_COUNT rays from the viewer and builds up the video display based on the intersections with the walls. The rays are
         // cast in such a way that they all fit into a FOV field of view a ray is cast and then the distance to the first horizontal and vertical
@@ -256,8 +255,8 @@ class Ray {
             view_angle = ANGLE_360 + view_angle;
         }
         for (int ray = 0; ray < RAY_COUNT; ray++) {
-            ray_data xray = cast_ray_horizontal(x, y, view_angle);
-            ray_data yray = cast_ray_vertical(x, y, view_angle);        
+            RayData xray = cast_ray_horizontal(x, y, view_angle);
+            RayData yray = cast_ray_vertical(x, y, view_angle);        
             // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one was closer and then render it           
             SDL_Color color = White; //white == sliver between wall sections
             const float min_dist = (xray < yray) ? xray.distance : yray.distance;
@@ -293,8 +292,8 @@ class Ray {
         }
     } 
 
-    ray_data cast_ray_horizontal(int x, int y, int view_angle) const noexcept  {
-        ray_data result;
+    RayData cast_ray_horizontal(int x, int y, int view_angle) const noexcept  {
+        RayData result;
         float yi;    // used to track the y intersections  
         int x_bound; // the next horizontal intersection point   
         int x_delta; // the amount needed to move to get to the next cell position
@@ -328,8 +327,8 @@ class Ray {
         return result;          
     } 
   
-    ray_data cast_ray_vertical(int x, int y, int view_angle) const noexcept {
-        ray_data result;
+    RayData cast_ray_vertical(int x, int y, int view_angle) const noexcept {
+        RayData result;
         float xi;  // used to track the x intersections
         int y_bound;  // the next vertical intersection point    
         int y_delta; // the amount needed to move to get to the next cell position
