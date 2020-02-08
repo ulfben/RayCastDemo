@@ -7,5 +7,5 @@ namespace Config {
 	constexpr int WIN_HEIGHT = 480;
 	
 	//compile time feature-flags
-	constexpr bool hasMinimap() noexcept { return false; } 
+	constexpr bool hasMinimap() noexcept { return true; } 
 };
