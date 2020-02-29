@@ -26,7 +26,7 @@ class Ray {
         float intersection = 0; //the first possible intersection point
         int bound = 0; // the next intersection point   
         int delta = 0; // the amount needed to move to get to the next cell position
-        int next_cell = 0; //used to figure out the quadrant of the ray            
+        int next_cell = 0; //cell delta, to move left / right or up / down
     };
     
     //declare SDL_Color values for each color in the original LUT
@@ -299,46 +299,23 @@ class Ray {
         }
     } 
 
+    // compute first vertical line that could be intersected with ray
     RayBegin init_horizontal_ray(int x, int y, int view_angle) const noexcept {
-        float yi;    // used to track the y intersections  
-        int x_bound; // the next horizontal intersection point   
-        int x_delta; // the amount needed to move to get to the next cell position
-        int next_x_cell; // used to figure out the quadrant of the ray     
-        if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) { // compute first vertical line that could be intersected with ray. note: it will be to the right of player
-            //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);  //round x to nearest CELL_WIDTH (power-of-2)
-            x_bound = (CELL_WIDTH + (x & MAGIC_CONSTANT)); //Optmization of the above.
-            x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
-            yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
-            next_x_cell = 0; // set cell delta
-        }
-        else { // compute first vertical line that could be intersected with ray. note: it will be to the left of player
-            x_bound = (x & MAGIC_CONSTANT); //Optmization of the above.
-            x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
-            yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
-            next_x_cell = -1; // set cell delta
-        }
-        return RayBegin{ yi, x_bound, x_delta, next_x_cell };
+        const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
+        const int x_bound = FACING_RIGHT ? CELL_WIDTH + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
+        const int x_delta = FACING_RIGHT ? CELL_WIDTH : -CELL_WIDTH; // the amount needed to move to get to the next vertical line (cell boundary)
+        const int next_cell_direction = FACING_RIGHT ? 0 : -1;        
+        const float yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
+        return RayBegin{ yi, x_bound, x_delta, next_cell_direction };
     }
 
     RayBegin init_vertical_ray(int x, int y, int view_angle) const noexcept {
-        float xi;  // used to track the x intersections
-        int y_bound;  // the next vertical intersection point    
-        int y_delta; // the amount needed to move to get to the next cell position
-        int next_y_cell; // used to figure out the quadrant of the ray
-        if (view_angle >= ANGLE_0 && view_angle < ANGLE_180) { // compute first horizontal line that could be intersected with ray. note: it will be above player
-            //y_bound = CELL_HEIGHT + CELL_HEIGHT * (y / CELL_HEIGHT); //round y to nearest CELL_HEIGHT (power-of-2) 
-            y_bound = (CELL_HEIGHT + (y & MAGIC_CONSTANT)); //Optimization. Achieves same as above. 
-            y_delta = CELL_HEIGHT; // compute delta to get to next horizontal line                
-            xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin
-            next_y_cell = 0; // set cell delta
-        }
-        else { // compute first horizontal line that could be intersected with ray. note: it will be below player
-            y_bound = (y & MAGIC_CONSTANT); //Optimization, same as above.
-            y_delta = -CELL_HEIGHT; // compute delta to get to next horizontal line                
-            xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
-            next_y_cell = -1; // set cell delta
-        }
-        return RayBegin{ xi, y_bound, y_delta, next_y_cell };
+        const auto FACING_UP = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
+        const int y_bound = FACING_UP ? CELL_HEIGHT  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
+        const int y_delta = FACING_UP ? CELL_HEIGHT : -CELL_HEIGHT; // the amount needed to move to get to the next horizontal line (cell boundary)
+        const int next_cell_direction = FACING_UP ? 0 : -1;                
+        const float xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
+        return RayBegin{ xi, y_bound, y_delta, next_cell_direction };
     }
 
     RayEnd cast_horizontal(int x, int y, int view_angle) const noexcept  {       
