@@ -3,7 +3,7 @@
 #include "Window.h"
 #include <stdexcept>
 Renderer::Renderer(const Window& w): 
-	_ptr{ SDL_CreateRenderer(w.getRawPtr(), SDL_RENDERER_ACCELERATED, -1)}{
+	_ptr{ SDL_CreateRenderer(w.getRawPtr(), -1, SDL_RENDERER_ACCELERATED)}{
 	if (!_ptr) {		
 		throw SDLError();
 	}

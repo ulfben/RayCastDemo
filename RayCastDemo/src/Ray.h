@@ -95,49 +95,56 @@ class Ray {
     static constexpr auto WALL_BOUNDARY_COLOR = White;
     static constexpr auto VERTICAL_WALL_COLOR = LightGreen;
     static constexpr auto HORIZONTAL_WALL_COLOR = DarkGreen;
-    static constexpr auto MAP_WIDTH = 256; //target width of the minimap, in pixels. 
+
+    static constexpr auto MAP_SIZE = 128; //target width of the minimap, in pixels. 
     static constexpr auto VIEWPORT_WIDTH = 320; //TODO: Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
     static constexpr auto VIEWPORT_HEIGHT = 240;
-    static constexpr auto RAY_COUNT = VIEWPORT_WIDTH; //one ray per column of screen space (horizontal resolution)    
+    static constexpr auto RAY_COUNT = VIEWPORT_WIDTH; //one ray per column of screen space (horizontal resolution)        
     static constexpr auto FOV_DEGREES = 60; //Field of View, in degrees. We'll need to break these into RAY_COUNT sub-angles and cast a ray for each angle. We'll be using a lookup table for that        
+    
     static constexpr auto TABLE_SIZE = static_cast<int>(VIEWPORT_WIDTH * (360.0f / FOV_DEGREES)); //how many elements we need to store the slope of every possible ray that can be projected.
-    static constexpr auto ANGLE_360 = TABLE_SIZE; //number of possible angles in a full rotation (right)
-    static constexpr auto HALF_FOV_ANGLE = static_cast<int>(ANGLE_360 / (360.0f / FOV_DEGREES)) / 2; //in angles, not degrees. So FOV 60 (degrees) = HALF_FOV 30 (degree) = 160 angles (for lookup tables)
+    static constexpr auto ANGLE_360 = TABLE_SIZE; //number of possible angles in a full rotation (also, direction: right)        
+    static constexpr auto ANGLE_180 = ANGLE_360 / 2; //direction left
+    static constexpr auto ANGLE_90 = ANGLE_360 / 4; //up
+    static constexpr auto ANGLE_45 = ANGLE_360 / 8; //up-right    
+    static constexpr auto ANGLE_0 = 0;  //also right (same as 360)
+    static constexpr auto ANGLE_270 = ANGLE_360 - ANGLE_90; //down    
+    static constexpr auto HALF_FOV_ANGLE = VIEWPORT_WIDTH / 2; // FoV/2 in angles (for table lookup) instead of degrees.    
+    static constexpr auto TWO_PI = 2.0f * 3.141592654f;
+    static constexpr auto ANGLE_TO_RADIANS = (TWO_PI / ANGLE_360);
+
+    static constexpr auto CELL_SIZE = 64; //width and height of a cell in the game world, must be a power of 2.   
+    static constexpr auto CELL_SIZE_FP = Utils::log2(CELL_SIZE); // log base 2 of 64 (used for quick division)    
+    static constexpr auto OVERBOARD = CELL_SIZE / 2; // the absolute closest a player can get to a wall  
+    //320x240@60fov = K15000, 128x64@60fov = K7000
+    static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)    
+    
     static constexpr auto START_POS_X = 8;
     static constexpr auto START_POS_Y = 3;
-    static constexpr auto WALK_SPEED = 10;
+    static constexpr auto WALK_SPEED = 8; //arbitrary. 
     static constexpr auto ROTATION_SPEED = ANGLE_360 / 100; //arbitrary. 
-    static constexpr auto CELL_WIDTH = 64; //size of a cell in the game world
-    static constexpr auto CELL_HEIGHT = 64; //must be a power of two
-    static constexpr auto CELL_WIDTH_FP = Utils::log2(CELL_WIDTH); // log base 2 of 64 (used for quick division)
-    static constexpr auto CELL_HEIGHT_FP = Utils::log2(CELL_HEIGHT);
-    //320x240@60fov = K15000, 128x64@60fov = K7000
-    static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
-    static constexpr auto ANGLE_270 = static_cast<int>(ANGLE_360 * 0.75f); //down
-    static constexpr auto ANGLE_180 = ANGLE_360 / 2; //left
-    static constexpr auto ANGLE_90 = ANGLE_360 / 4; //up
-    static constexpr auto ANGLE_45 = ANGLE_360 / 8; //up and right
-    static constexpr auto ANGLE_0 = 0;  //also right (same as 360)
-    static constexpr auto VIEWPORT_LEFT = MAP_WIDTH + (((Config::WIN_WIDTH-MAP_WIDTH)/2)- (VIEWPORT_WIDTH/2)); //center between map and screen edge
+
+    static constexpr auto VIEWPORT_LEFT = MAP_SIZE + (((Config::WIN_WIDTH-MAP_SIZE)/2)- (VIEWPORT_WIDTH/2)); //center between map and screen edge
     static constexpr auto VIEWPORT_TOP = Config::WIN_HEIGHT / 2 - VIEWPORT_HEIGHT / 2;
     static constexpr auto VIEWPORT_RIGHT = VIEWPORT_LEFT + VIEWPORT_WIDTH;
     static constexpr auto VIEWPORT_BOTTOM = VIEWPORT_TOP + VIEWPORT_HEIGHT;
     static constexpr auto VIEWPORT_HORIZON = VIEWPORT_TOP + (VIEWPORT_HEIGHT / 2);    
-    static constexpr auto OVERBOARD = (CELL_WIDTH+CELL_HEIGHT)/4; // the absolute closest a player can get to a wall  
-    static constexpr auto TWO_PI = 2.0f * 3.141592654f;
+   
     static constexpr auto WORLD_ROWS = 16;
-    static constexpr auto WORLD_COLUMNS = 16;
+    static constexpr auto WORLD_COLUMNS = WORLD_ROWS;
     static constexpr auto FIRST_VALID_CELL = 1; //to shortcut collision testing we can check against the map boundary walls. Helps with mouse interaction and for Q&D respawn when stuck in a wall.
     static constexpr auto LAST_VALID_CELL = WORLD_ROWS-2; //0 == wall, 15 == wall. so if our position is below or above the valid spaces, we can bail without performing lookup. TODO: this should be part of the map data. 
-    static constexpr auto WORLD_WIDTH = (WORLD_COLUMNS * CELL_WIDTH);
-    static constexpr auto WORLD_HEIGHT = (WORLD_ROWS * CELL_HEIGHT); 
-    //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be based on an even power-of-two >= WORLD_WIDTH. Used to quickly round our position to nearest cell wall using bitwise AND.
-    static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_WIDTH) ? WORLD_WIDTH : Utils::nextPowerOfTwo(WORLD_WIDTH))-CELL_WIDTH;                
-    static constexpr auto MAP_SCALE_FACTOR = static_cast<int>(1.0f / (static_cast<float>(MAP_WIDTH) / WORLD_WIDTH)); //could invert this (eg: *0.25 instead of /4), but I'll take this ugly casting business once to get integer math throughout the runtime.
-    static constexpr auto MAP_HEIGHT = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
-    static constexpr auto SCALED_CELL_WIDTH = CELL_WIDTH / MAP_SCALE_FACTOR;
-    static constexpr auto SCALED_CELL_HEIGHT = CELL_HEIGHT / MAP_SCALE_FACTOR;
-    static constexpr auto ANGLE_TO_RADIANS = (TWO_PI / ANGLE_360);    
+    static constexpr auto WORLD_SIZE = (WORLD_ROWS * CELL_SIZE); //width and height of the gameworld    
+    //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be an even power-of-two >= WORLD_SIZE. Used to quickly round our position to nearest cell wall using bitwise AND.
+    static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_SIZE) ? WORLD_SIZE : Utils::nextPowerOfTwo(WORLD_SIZE))-CELL_SIZE;                
+    static constexpr auto MAP_SCALE_FACTOR = static_cast<int>(1.0f / (static_cast<float>(MAP_SIZE) / WORLD_SIZE)); //could invert this (eg: *0.25 instead of /4), but I'll take this ugly casting business once to get integer math throughout the runtime.
+    static constexpr auto MAP_HEIGHT = MAP_SIZE; 
+    static constexpr auto SCALED_CELL_SIZE = CELL_SIZE / MAP_SCALE_FACTOR;    
+    
+    static_assert(Utils::isPowerOfTwo(WORLD_SIZE) && "World width and height must be a power-of-2");
+    static_assert(Utils::isPowerOfTwo(CELL_SIZE) && "Cell width and height must be a power-of-2");
+    static_assert(WORLD_ROWS == WORLD_COLUMNS && "The map must be square - WORLD_ROWS == WORLD_COLUMNS");
+        
     static constexpr char WORLD[WORLD_ROWS][WORLD_COLUMNS] = { // world map
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
@@ -182,16 +189,16 @@ class Ray {
             // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant. Since the tangent is
             // equivalent to the slope of a line, if the tangent is wrong then the ray that is cast will be wrong
             if (ang >= ANGLE_0 && ang < ANGLE_180) { //upper half plane (eg. upper right & left quadrants)
-                y_step[ang] = std::abs(tan_table[ang] * CELL_HEIGHT);
+                y_step[ang] = std::abs(tan_table[ang] * CELL_SIZE);
             }
             else {
-                y_step[ang] = -std::abs(tan_table[ang] * CELL_HEIGHT); 
+                y_step[ang] = -std::abs(tan_table[ang] * CELL_SIZE); 
             }
             if (ang >= ANGLE_90 && ang < ANGLE_270) { //left half plane (left up and down quads)
-                x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_WIDTH);
+                x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_SIZE);
             }
             else {
-                x_step[ang] = std::abs(inv_tan_table[ang] * CELL_WIDTH);
+                x_step[ang] = std::abs(inv_tan_table[ang] * CELL_SIZE);
             }     
 
             //asymtotic rays goes to infinity. this test was originally handled in the ray caster inner loop, but never triggered during development. Moved to build, as sanity check.            
@@ -237,11 +244,11 @@ class Ray {
     void Draw_2D_Map() const noexcept {  
         if constexpr (false == Config::hasMinimap()) { return;  }
         for (int row = 0; row < WORLD_ROWS; row++) {
-            const auto top = row * SCALED_CELL_HEIGHT;
-            const auto bottom = top + SCALED_CELL_HEIGHT - 1;
+            const auto top = row * SCALED_CELL_SIZE;
+            const auto bottom = top + SCALED_CELL_SIZE - 1;
             for (int column = 0; column < WORLD_COLUMNS; column++) {
-                const auto left = column * SCALED_CELL_WIDTH;                
-                const auto right = left + SCALED_CELL_WIDTH - 1;                
+                const auto left = column * SCALED_CELL_SIZE;                
+                const auto right = left + SCALED_CELL_SIZE - 1;                
                 const auto block = WORLD[row][column];
                 if (block == 0) {
                     _setcolor(White);
@@ -268,7 +275,7 @@ class Ray {
             SDL_Color color = WALL_BOUNDARY_COLOR;
             const float min_dist = (xray < yray) ? xray.distance : yray.distance;
             if (xray < yray) { // there was a vertical wall closer than a horizontal wall                
-                if (xray.intersection % CELL_HEIGHT > 1) {
+                if (xray.intersection % CELL_SIZE > 1) {
                     color = VERTICAL_WALL_COLOR;
                 }
                 if constexpr (Config::hasMinimap()) {
@@ -276,7 +283,7 @@ class Ray {
                 }
             }
             else { // must have hit a horizontal wall first                            
-                if (yray.intersection % CELL_WIDTH > 1) {
+                if (yray.intersection % CELL_SIZE > 1) {
                     color = HORIZONTAL_WALL_COLOR;
                 }
                 if constexpr (Config::hasMinimap()) {
@@ -287,12 +294,11 @@ class Ray {
             const int height = static_cast<int>(cos_table[ray] / min_dist);                          
             const int clipped_height = (height > VIEWPORT_HEIGHT) ? VIEWPORT_HEIGHT : height;
             const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optimization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.             
-            const int bottom = top + clipped_height;
-            const int sliver_x = (VIEWPORT_RIGHT - ray);
+            const int bottom = (top + clipped_height)-1; //we're off by one, overdrawing 1px to the left and bottom of the viewport. 
+            const int sliver_x = (VIEWPORT_RIGHT - ray)-1; //q&d fix by compensating here, for now. 
             _setcolor(color);
             _moveto(sliver_x, top);
-            _lineto(sliver_x, bottom);
-
+            _lineto(sliver_x, bottom); 
             if (++view_angle >= ANGLE_360) {
                 view_angle = 0; //reset angle back to zero
             }
@@ -302,8 +308,8 @@ class Ray {
     // compute first vertical line that could be intersected with ray
     RayBegin init_horizontal_ray(int x, int y, int view_angle) const noexcept {
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
-        const int x_bound = FACING_RIGHT ? CELL_WIDTH + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
-        const int x_delta = FACING_RIGHT ? CELL_WIDTH : -CELL_WIDTH; // the amount needed to move to get to the next vertical line (cell boundary)
+        const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
+        const int x_delta = FACING_RIGHT ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next vertical line (cell boundary)
         const int next_cell_direction = FACING_RIGHT ? 0 : -1;        
         const float yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
         return RayBegin{ yi, x_bound, x_delta, next_cell_direction };
@@ -311,8 +317,8 @@ class Ray {
 
     RayBegin init_vertical_ray(int x, int y, int view_angle) const noexcept {
         const auto FACING_UP = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
-        const int y_bound = FACING_UP ? CELL_HEIGHT  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
-        const int y_delta = FACING_UP ? CELL_HEIGHT : -CELL_HEIGHT; // the amount needed to move to get to the next horizontal line (cell boundary)
+        const int y_bound = FACING_UP ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
+        const int y_delta = FACING_UP ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
         const int next_cell_direction = FACING_UP ? 0 : -1;                
         const float xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
         return RayBegin{ xi, y_bound, y_delta, next_cell_direction };
@@ -321,9 +327,9 @@ class Ray {
     RayEnd cast_horizontal(int x, int y, int view_angle) const noexcept  {       
         auto [yi,  x_bound, x_delta, next_x_cell] = init_horizontal_ray(x, y, view_angle);         
         RayEnd result;
-        while (x_bound < WORLD_WIDTH) {
-            const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization: shift instead of divide, might help the Arduboy
-            const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;                   
+        while (x_bound < WORLD_SIZE) {
+            const int cell_x = ((x_bound + next_x_cell) >> CELL_SIZE_FP); //Optimization: shift instead of divide, might help the Arduboy
+            const int cell_y = static_cast<int>(yi) >> CELL_SIZE_FP;                   
             if (!isWall(cell_x, cell_y)) {
                 yi += y_step[view_angle]; // compute next Y intercept
                 x_bound += x_delta; // move to next possible intersection points
@@ -340,9 +346,9 @@ class Ray {
     RayEnd cast_vertical(int x, int y, int view_angle) const noexcept {        
         auto [xi, y_bound, y_delta, next_y_cell] = init_vertical_ray(x, y, view_angle);
         RayEnd result;
-        while(y_bound < WORLD_HEIGHT){
-            const int cell_x = static_cast<int>(xi) >> CELL_WIDTH_FP;   // the current cell that the ray is in             
-            const int cell_y = ((y_bound + next_y_cell) >> CELL_HEIGHT_FP);
+        while(y_bound < WORLD_SIZE){
+            const int cell_x = static_cast<int>(xi) >> CELL_SIZE_FP;   // the current cell that the ray is in             
+            const int cell_y = ((y_bound + next_y_cell) >> CELL_SIZE_FP);
             if (!isWall(cell_x, cell_y)) {
                 xi += x_step[view_angle]; //compute next X intercept
                 y_bound += y_delta;
@@ -364,7 +370,7 @@ class Ray {
         _setcolor(Brown);
         _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_HORIZON, VIEWPORT_RIGHT, VIEWPORT_BOTTOM);
         _setcolor(DarkRed);
-        _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around viewport
+         _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT-1, VIEWPORT_TOP-1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around viewport
     }
 
     void updateViewPoint() {       
@@ -373,8 +379,8 @@ class Ray {
         if (_input.isButtonDown(MouseButton::LEFT)) {
             const int mouseX = _input.mouseX();
             const int mouseY = _input.mouseY();            
-            const int mouseCellX = mouseX / SCALED_CELL_WIDTH;
-            const int mouseCellY = mouseY / SCALED_CELL_HEIGHT;
+            const int mouseCellX = mouseX / SCALED_CELL_SIZE;
+            const int mouseCellY = mouseY / SCALED_CELL_SIZE;
             std::cout << "x:"<< mouseX << " y:" << mouseY << " / cellx:" << mouseCellX << " celly:" << mouseCellY << "\n";
             if (!isWall(mouseCellX, mouseCellY)) {
                 centerPlayerInCell(mouseCellX, mouseCellY);
@@ -410,17 +416,17 @@ class Ray {
 
     void checkCollisions() {
         // test if user has bumped into a wall i.e. test if there is a cell within the direction of motion, if so back up!                               
-        const int x_cell = _viewPoint.x / CELL_WIDTH;
-        const int y_cell = _viewPoint.y / CELL_HEIGHT;                
-        const int x_sub_cell = _viewPoint.x % CELL_WIDTH; // compute position within the cell
-        const int y_sub_cell = _viewPoint.y % CELL_HEIGHT;          
+        const int x_cell = _viewPoint.x / CELL_SIZE;
+        const int y_cell = _viewPoint.y / CELL_SIZE;                
+        const int x_sub_cell = _viewPoint.x % CELL_SIZE; // compute position within the cell
+        const int y_sub_cell = _viewPoint.y % CELL_SIZE;          
        
         if (isWall(x_cell, y_cell)) { //standing inside a wall, somehow. 
             return centerPlayerInCell(FIRST_VALID_CELL, FIRST_VALID_CELL);
         }
         if (_viewPoint.dx > 0 && isWall(x_cell + 1, y_cell)) {// moving right, towards a wall
-            if (x_sub_cell > (CELL_WIDTH - OVERBOARD)) {                
-                _viewPoint.x -= (x_sub_cell - (CELL_WIDTH - OVERBOARD)); // back player up amount they stepped over the line
+            if (x_sub_cell > (CELL_SIZE - OVERBOARD)) {                
+                _viewPoint.x -= (x_sub_cell - (CELL_SIZE - OVERBOARD)); // back player up amount they stepped over the line
             }
         }
         else if (_viewPoint.dx < 0 && isWall(x_cell - 1, y_cell)) {// moving left, towards a wall
@@ -430,8 +436,8 @@ class Ray {
         }
 
         if (_viewPoint.dy > 0 && isWall(x_cell, y_cell + 1)) { // moving up
-            if (y_sub_cell > (CELL_HEIGHT - OVERBOARD)) {                
-                _viewPoint.y -= (y_sub_cell - (CELL_HEIGHT - OVERBOARD));
+            if (y_sub_cell > (CELL_SIZE - OVERBOARD)) {                
+                _viewPoint.y -= (y_sub_cell - (CELL_SIZE - OVERBOARD));
             }
         }
         else if (_viewPoint.dy < 0 && isWall(x_cell, y_cell - 1)) {// moving down            
@@ -447,13 +453,13 @@ class Ray {
         if (x < FIRST_VALID_CELL || y < FIRST_VALID_CELL 
             || x > LAST_VALID_CELL || y > LAST_VALID_CELL) {
             return true;
-        }        
+        }  
         return (WORLD[y][x] != 0);
     }
 
     inline constexpr void centerPlayerInCell(int cellx, int celly) noexcept {
-        _viewPoint.x = cellx * CELL_WIDTH  + (CELL_WIDTH >> 1);
-        _viewPoint.y = celly * CELL_HEIGHT + (CELL_HEIGHT >> 1);
+        _viewPoint.x = cellx * CELL_SIZE + (CELL_SIZE >> 1);
+        _viewPoint.y = celly * CELL_SIZE + (CELL_SIZE >> 1);
     }
 
 public:
@@ -469,8 +475,7 @@ public:
             clearWindow();
             updateViewPoint();
             checkCollisions();
-            if constexpr (Config::hasMinimap()) { Draw_2D_Map(); }
-            
+            if constexpr (Config::hasMinimap()) { Draw_2D_Map(); }            
             Ray_Caster(_viewPoint.x, _viewPoint.y, _viewPoint.angle);
             _r.present();
             SDL_Delay(16);
