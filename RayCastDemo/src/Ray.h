@@ -16,11 +16,17 @@ class Ray {
         int x = 0, y = 0, angle = 0;
         float dx = 0.0f, dy = 0.0f;        
     };
-    struct RayData {
+    struct RayEnd {
         int boundary = 0; // record intersections with cell boundaries        
-        int intersection = 0; // used to save exact x and y intersection points        
-        float distance = 0.0f; // the distance of the x and y ray intersections from  
-        bool operator <(const RayData& that) const noexcept { return distance < that.distance; };
+        int intersection = 0; // used to save exact intersection point 
+        float distance = 0.0f; // the distance of the x and y ray intersections from the player
+        bool operator <(const RayEnd& that) const noexcept { return distance < that.distance; };
+    };
+    struct RayBegin {
+        float intersection = 0; //the first possible intersection point
+        int bound = 0; // the next intersection point   
+        int delta = 0; // the amount needed to move to get to the next cell position
+        int next_cell = 0; //used to figure out the quadrant of the ray            
     };
     
     //declare SDL_Color values for each color in the original LUT
@@ -85,7 +91,10 @@ class Ray {
             _r.drawRect(rect);
         }
     }
- 
+     
+    static constexpr auto WALL_BOUNDARY_COLOR = White;
+    static constexpr auto VERTICAL_WALL_COLOR = LightGreen;
+    static constexpr auto HORIZONTAL_WALL_COLOR = DarkGreen;
     static constexpr auto MAP_WIDTH = 256; //target width of the minimap, in pixels. 
     static constexpr auto VIEWPORT_WIDTH = 320; //TODO: Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
     static constexpr auto VIEWPORT_HEIGHT = 240;
@@ -106,8 +115,8 @@ class Ray {
     static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)
     static constexpr auto ANGLE_270 = static_cast<int>(ANGLE_360 * 0.75f); //down
     static constexpr auto ANGLE_180 = ANGLE_360 / 2; //left
-    static constexpr auto ANGLE_90 = ANGLE_180 / 2; //up
-    static constexpr auto ANGLE_45 = ANGLE_90 / 2; //up and right
+    static constexpr auto ANGLE_90 = ANGLE_360 / 4; //up
+    static constexpr auto ANGLE_45 = ANGLE_360 / 8; //up and right
     static constexpr auto ANGLE_0 = 0;  //also right (same as 360)
     static constexpr auto VIEWPORT_LEFT = MAP_WIDTH + (((Config::WIN_WIDTH-MAP_WIDTH)/2)- (VIEWPORT_WIDTH/2)); //center between map and screen edge
     static constexpr auto VIEWPORT_TOP = Config::WIN_HEIGHT / 2 - VIEWPORT_HEIGHT / 2;
@@ -128,8 +137,7 @@ class Ray {
     static constexpr auto MAP_HEIGHT = (WORLD_ROWS * CELL_HEIGHT) / MAP_SCALE_FACTOR;
     static constexpr auto SCALED_CELL_WIDTH = CELL_WIDTH / MAP_SCALE_FACTOR;
     static constexpr auto SCALED_CELL_HEIGHT = CELL_HEIGHT / MAP_SCALE_FACTOR;
-    static constexpr auto ANGLE_TO_RADIANS = (TWO_PI / ANGLE_360);
-    static constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
+    static constexpr auto ANGLE_TO_RADIANS = (TWO_PI / ANGLE_360);    
     static constexpr char WORLD[WORLD_ROWS][WORLD_COLUMNS] = { // world map
         {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
         {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
@@ -156,17 +164,19 @@ class Ray {
     // step tables used to find next intersections, equivalent to slopes times width and height of cell    
     std::array<float, ANGLE_360 + 1> y_step; //x and y steps, used to find intersections after initial one is found
     std::array<float, ANGLE_360 + 1> x_step;
-
-    // cos table used to fix view distortion caused by radial projection, used to cancel out fishbowl effect
-    std::array<float, ANGLE_360 + 1> cos_table;
-
-    // 1/cos and 1/sin tables used to compute distance of intersection very quickly
-    std::array<float, ANGLE_360 + 1> inv_cos_table;
-    std::array<float, ANGLE_360 + 1> inv_sin_table;
+    
+    // 1/cos and 1/sin tables used to compute distance of intersection very quickly  
+    // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90.    
+    std::array<float, ANGLE_360 + 1 + ANGLE_90> inv_sin_table;   //+90 degrees to make room for the tail-end of the offset cos values.    
+    float* inv_cos_table = &inv_sin_table[ANGLE_90]; //cos(X) == sin(X+90).
+    
+    // cos table used to fix view distortion caused by radial projection (eg: cancel out fishbowl effect)
+    std::array<float, HALF_FOV_ANGLE * 2 + 1> cos_table;
 
     void Build_Tables() noexcept {
+        constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
         for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {
-            const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //TODO: why are we adding a 0.1 radian? 
+            const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0. 
             tan_table[ang] = std::tan(rad_angle);
             inv_tan_table[ang] = 1.0f / tan_table[ang];
             // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant. Since the tangent is
@@ -184,15 +194,15 @@ class Ray {
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_WIDTH);
             }     
 
-            //asymtotic rays goes to infinity,
-            //this test was originally handled in the ray caster inner loop, but never triggered during development
-            //hence I moved the check to build time and if they ever trigger we'll have to ad back the if statements to the caster.
+            //asymtotic rays goes to infinity. this test was originally handled in the ray caster inner loop, but never triggered during development. Moved to build, as sanity check.            
             SDL_assert(std::fabs(y_step[ang]) != 0 && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
-            SDL_assert(std::fabs(x_step[ang]) != 0 && "Potential asymtotic ray on the x-axis produced while building lookup tables.");
-            
-            inv_cos_table[ang] = 1.0f / std::cos(rad_angle);
+            SDL_assert(std::fabs(x_step[ang]) != 0 && "Potential asymtotic ray on the x-axis produced while building lookup tables.");           
+          
             inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
         }
+        auto end = std::end(inv_sin_table) - ANGLE_90;
+        std::copy_n(std::begin(inv_sin_table), ANGLE_90, end); //duplicate the first 90 sin values at the end of the array, to complete the joint sin & cos lookup table.
+                
         // create view filter table. There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
         // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.  Without this we would see a fishbowl effect
         for (int ang = -HALF_FOV_ANGLE; ang <= HALF_FOV_ANGLE; ang++) {
@@ -246,23 +256,20 @@ class Ray {
     }
         
     void Ray_Caster(int x, int y, int view_angle) noexcept {
-        // This function casts out RAY_COUNT rays from the viewer and builds up the video display based on the intersections with the walls. The rays are
-        // cast in such a way that they all fit into a FOV field of view a ray is cast and then the distance to the first horizontal and vertical
-        // edge that has a cell in it is recorded.  The intersection that has the closer distance to the user is the one that is used to draw the bitmap.
-        // the inverse of that distance is used to compute the height of the "sliver" of texture or line that will be drawn on the screen        
-
-        if ((view_angle -= HALF_FOV_ANGLE) < 0) { // compute starting angle from player.  Field of view is FOV angles, subtract half of that from the current view angle
+        // This function casts out RAY_COUNT rays from the viewer and builds up the display based on the intersections with the walls.
+        // The distance to the first horizontal and vertical edge is recorded. The closest intersection is the one used to draw the display.
+        // The inverse of that distance is used to compute the height of the "sliver" of texture that will be drawn on the screen
+        if ((view_angle -= HALF_FOV_ANGLE) < 0) { // compute starting angle from player. Field of view is FOV angles, subtract half of that from the current view angle
             view_angle = ANGLE_360 + view_angle;
         }
         for (int ray = 0; ray < RAY_COUNT; ray++) {
-            RayData xray = cast_ray_horizontal(x, y, view_angle);
-            RayData yray = cast_ray_vertical(x, y, view_angle);        
-            // at this point, we know that the ray has succesfully hit both a vertical wall and a horizontal wall, so we need to see which one was closer and then render it           
-            SDL_Color color = White; //white == sliver between wall sections
+            RayEnd xray = cast_horizontal(x, y, view_angle); //find first collision with a horizontal wall
+            RayEnd yray = cast_vertical(x, y, view_angle); // and first collision with a vertical wall            
+            SDL_Color color = WALL_BOUNDARY_COLOR;
             const float min_dist = (xray < yray) ? xray.distance : yray.distance;
-            if (xray < yray) { // there was a vertical wall closer than the horizontal                
+            if (xray < yray) { // there was a vertical wall closer than a horizontal wall                
                 if (xray.intersection % CELL_HEIGHT > 1) {
-                    color = LightGreen;
+                    color = VERTICAL_WALL_COLOR;
                 }
                 if constexpr (Config::hasMinimap()) {
                     sline(x, y, xray.boundary, xray.intersection, color);
@@ -270,16 +277,16 @@ class Ray {
             }
             else { // must have hit a horizontal wall first                            
                 if (yray.intersection % CELL_WIDTH > 1) {
-                    color = DarkGreen;
+                    color = HORIZONTAL_WALL_COLOR;
                 }
                 if constexpr (Config::hasMinimap()) {
                     sline(x, y, yray.intersection, yray.boundary, color);
                 }
             }
             // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K which has been pre-multiplied into the view-filter lookup-table.
-            const int height = static_cast<int>(cos_table[ray] / min_dist); // compute the sliver height and multiply by view filter so that spherical distortion is cancelled                             
+            const int height = static_cast<int>(cos_table[ray] / min_dist);                          
             const int clipped_height = (height > VIEWPORT_HEIGHT) ? VIEWPORT_HEIGHT : height;
-            const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optmization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.             
+            const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optimization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.             
             const int bottom = top + clipped_height;
             const int sliver_x = (VIEWPORT_RIGHT - ray);
             _setcolor(color);
@@ -292,43 +299,28 @@ class Ray {
         }
     } 
 
-    RayData cast_ray_horizontal(int x, int y, int view_angle) const noexcept  {
-        RayData result;
+    RayBegin init_horizontal_ray(int x, int y, int view_angle) const noexcept {
         float yi;    // used to track the y intersections  
         int x_bound; // the next horizontal intersection point   
         int x_delta; // the amount needed to move to get to the next cell position
-        int next_x_cell; // used to figure out the quadrant of the ray            
+        int next_x_cell; // used to figure out the quadrant of the ray     
         if (view_angle < ANGLE_90 || view_angle >= ANGLE_270) { // compute first vertical line that could be intersected with ray. note: it will be to the right of player
             //x_bound = CELL_WIDTH + CELL_WIDTH * (x / CELL_WIDTH);  //round x to nearest CELL_WIDTH (power-of-2)
             x_bound = (CELL_WIDTH + (x & MAGIC_CONSTANT)); //Optmization of the above.
             x_delta = CELL_WIDTH; // compute delta to get to next vertical line                
             yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                
             next_x_cell = 0; // set cell delta
-        } else { // compute first vertical line that could be intersected with ray. note: it will be to the left of player
+        }
+        else { // compute first vertical line that could be intersected with ray. note: it will be to the left of player
             x_bound = (x & MAGIC_CONSTANT); //Optmization of the above.
             x_delta = -CELL_WIDTH; // compute delta to get to next vertical line                
             yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
             next_x_cell = -1; // set cell delta
         }
-        while (x_bound < WORLD_WIDTH) {
-            const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization: shift instead of divide, might help the Arduboy
-            const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;                   
-            if (isWall(cell_x, cell_y)) {
-                result.distance = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
-                result.boundary = x_bound; // record intersections with cell boundaries
-                result.intersection = static_cast<int>(yi);   
-                return result;
-            }
-            else {
-                yi += y_step[view_angle]; // compute next Y intercept
-            }            
-            x_bound += x_delta; // move to next possible intersection points
-        }        
-        return result;          
-    } 
-  
-    RayData cast_ray_vertical(int x, int y, int view_angle) const noexcept {
-        RayData result;
+        return RayBegin{ yi, x_bound, x_delta, next_x_cell };
+    }
+
+    RayBegin init_vertical_ray(int x, int y, int view_angle) const noexcept {
         float xi;  // used to track the x intersections
         int y_bound;  // the next vertical intersection point    
         int y_delta; // the amount needed to move to get to the next cell position
@@ -346,20 +338,43 @@ class Ray {
             xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
             next_y_cell = -1; // set cell delta
         }
-        
+        return RayBegin{ xi, y_bound, y_delta, next_y_cell };
+    }
+
+    RayEnd cast_horizontal(int x, int y, int view_angle) const noexcept  {       
+        auto [yi,  x_bound, x_delta, next_x_cell] = init_horizontal_ray(x, y, view_angle);         
+        RayEnd result;
+        while (x_bound < WORLD_WIDTH) {
+            const int cell_x = ((x_bound + next_x_cell) >> CELL_WIDTH_FP); //Optimization: shift instead of divide, might help the Arduboy
+            const int cell_y = static_cast<int>(yi) >> CELL_HEIGHT_FP;                   
+            if (!isWall(cell_x, cell_y)) {
+                yi += y_step[view_angle]; // compute next Y intercept
+                x_bound += x_delta; // move to next possible intersection points
+                continue;
+            }
+            result.distance = (yi - y) * inv_sin_table[view_angle]; // compute distance to hit
+            result.boundary = x_bound; // record intersections with cell boundaries
+            result.intersection = static_cast<int>(yi);
+            return result;                        
+        }        
+        return result;          
+    }  
+  
+    RayEnd cast_vertical(int x, int y, int view_angle) const noexcept {        
+        auto [xi, y_bound, y_delta, next_y_cell] = init_vertical_ray(x, y, view_angle);
+        RayEnd result;
         while(y_bound < WORLD_HEIGHT){
             const int cell_x = static_cast<int>(xi) >> CELL_WIDTH_FP;   // the current cell that the ray is in             
             const int cell_y = ((y_bound + next_y_cell) >> CELL_HEIGHT_FP);
-            if (isWall(cell_x, cell_y)) {
-                result.distance = (xi - x) * inv_cos_table[view_angle];
-                result.boundary = y_bound;
-                result.intersection = static_cast<int>(xi);                                        
-                return result;
+            if (!isWall(cell_x, cell_y)) {
+                xi += x_step[view_angle]; //compute next X intercept
+                y_bound += y_delta;
+                continue;
             }
-            else {
-                xi += x_step[view_angle]; // compute next X intercept
-            }        
-            y_bound += y_delta;   
+            result.distance = (xi - x) * inv_cos_table[view_angle];
+            result.boundary = y_bound;
+            result.intersection = static_cast<int>(xi);                                        
+            return result;            
         }
         return result;
     } 
