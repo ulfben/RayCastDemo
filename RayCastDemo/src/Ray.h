@@ -17,14 +17,14 @@ class Ray {
         float dx = 0.0f, dy = 0.0f;        
     };
     struct RayEnd {
+        float distance = 0.0f; // the distance of intersection from the player
         int boundary = 0; // record intersections with cell boundaries        
-        int intersection = 0; // used to save exact intersection point 
-        float distance = 0.0f; // the distance of the x and y ray intersections from the player
+        int intersection = 0; // used to save exact intersection point with a wall         
         bool operator <(const RayEnd& that) const noexcept { return distance < that.distance; };
     };
     struct RayBegin {
-        float intersection = 0; //the first possible intersection point
-        int bound = 0; // the next intersection point   
+        float intersection = 0.0f; //the first possible intersection point
+        int boundary = 0; // the next intersection point   
         int delta = 0; // the amount needed to move to get to the next cell position
         int next_cell = 0; //cell delta, to move left / right or up / down
     };
@@ -61,9 +61,7 @@ class Ray {
     const KeyMap rotateRight{ SDL_SCANCODE_KP_6, SDL_SCANCODE_RIGHT, SDL_SCANCODE_D };
     const KeyMap rotateLeft{ SDL_SCANCODE_KP_4, SDL_SCANCODE_LEFT, SDL_SCANCODE_A };
     const KeyMap moveForward{ SDL_SCANCODE_KP_8, SDL_SCANCODE_UP, SDL_SCANCODE_W };
-    const KeyMap moveBackward{ SDL_SCANCODE_KP_2, SDL_SCANCODE_DOWN, SDL_SCANCODE_S };
-    int _x1 = 0;
-    int _y1 = 0;
+    const KeyMap moveBackward{ SDL_SCANCODE_KP_2, SDL_SCANCODE_DOWN, SDL_SCANCODE_S };   
     void _setcolor(int lutIndex) const noexcept {
         SDL_assert(lutIndex > -1 && lutIndex < Palette.size() && "_setColor (int): invalid LUT color index specified, must be 0-15");
         const auto color = Palette[lutIndex];
@@ -71,13 +69,9 @@ class Ray {
     }
     void _setcolor(const SDL_Color& color) const noexcept {
         _r.setColor(color);
-    }
-    void _moveto(int x1, int y1) noexcept { //TODO: const correctness
-        _x1 = x1;
-        _y1 = y1;
-    }
-    void _lineto(int x2, int y2) const noexcept {
-        _r.drawLine(_x1, _y1, x2, y2);
+    }    
+    void drawLine(int x1, int y1, int x2, int y2) const noexcept {
+        _r.drawLine(x1, y1, x2, y2);
     }
     void _setpixel(int x, int y) const noexcept {
         _r.drawPoint(x, y);
@@ -174,9 +168,9 @@ class Ray {
     
     // 1/cos and 1/sin tables used to compute distance of intersection very quickly  
     // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90.    
-    std::array<float, ANGLE_360 + 1 + ANGLE_90> inv_sin_table;   //+90 degrees to make room for the tail-end of the offset cos values.    
-    float* inv_cos_table = &inv_sin_table[ANGLE_90]; //cos(X) == sin(X+90).
-    
+    std::array<float, ANGLE_360 + ANGLE_90> inv_sin_table; //+90 degrees to make room for the tail-end of the offset cos values.    
+    float* inv_cos_table = &inv_sin_table[ANGLE_90]; //cos(X) == sin(X+90).    
+
     // cos table used to fix view distortion caused by radial projection (eg: cancel out fishbowl effect)
     std::array<float, HALF_FOV_ANGLE * 2 + 1> cos_table;
 
@@ -205,7 +199,7 @@ class Ray {
             SDL_assert(std::fabs(y_step[ang]) != 0 && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
             SDL_assert(std::fabs(x_step[ang]) != 0 && "Potential asymtotic ray on the x-axis produced while building lookup tables.");           
           
-            inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
+            inv_sin_table[ang] = 1.0f / std::sin(rad_angle);         
         }
         auto end = std::end(inv_sin_table) - ANGLE_90;
         std::copy_n(std::begin(inv_sin_table), ANGLE_90, end); //duplicate the first 90 sin values at the end of the array, to complete the joint sin & cos lookup table.
@@ -219,15 +213,14 @@ class Ray {
         }
     }
     
-    void sline(int x1, int y1, int x2, int y2, const SDL_Color& color) noexcept {
+    void sline(int x1, int y1, int x2, int y2, const SDL_Color& color) const noexcept {
         // used a a diagnostic function to draw a scaled line
         x1 = x1 / MAP_SCALE_FACTOR;
         y1 = MAP_HEIGHT - (y1 / MAP_SCALE_FACTOR);
         x2 = x2 / MAP_SCALE_FACTOR;
         y2 = MAP_HEIGHT - (y2 / MAP_SCALE_FACTOR);
-        _setcolor(color);
-        _moveto(x1, y1);
-        _lineto(x2, y2);
+        _setcolor(color);        
+        drawLine(x1, y1, x2, y2);
     }
 
     void splot(int x, int y, const SDL_Color& color) const noexcept{
@@ -262,16 +255,16 @@ class Ray {
         }
     }
         
-    void Ray_Caster(int x, int y, int view_angle) noexcept {
+    void Ray_Caster(const int x, const int y, int view_angle) const noexcept {
         // This function casts out RAY_COUNT rays from the viewer and builds up the display based on the intersections with the walls.
         // The distance to the first horizontal and vertical edge is recorded. The closest intersection is the one used to draw the display.
-        // The inverse of that distance is used to compute the height of the "sliver" of texture that will be drawn on the screen
+        // The inverse of that distance is used to compute the height of the "sliver" of texture that will be drawn on the screen        
         if ((view_angle -= HALF_FOV_ANGLE) < 0) { // compute starting angle from player. Field of view is FOV angles, subtract half of that from the current view angle
             view_angle = ANGLE_360 + view_angle;
-        }
+        }       
         for (int ray = 0; ray < RAY_COUNT; ray++) {
-            RayEnd xray = cast_horizontal(x, y, view_angle); //find first collision with a horizontal wall
-            RayEnd yray = cast_vertical(x, y, view_angle); // and first collision with a vertical wall            
+            RayEnd xray = find_vertical_wall(x, y, view_angle);  //cast a ray along the x-axis to intersect with vertical walls
+            RayEnd yray = find_horizontal_wall(x, y, view_angle); //cast a ray along the y-axis to intersect with horizontal walls
             SDL_Color color = WALL_BOUNDARY_COLOR;
             const float min_dist = (xray < yray) ? xray.distance : yray.distance;
             if (xray < yray) { // there was a vertical wall closer than a horizontal wall                
@@ -289,16 +282,15 @@ class Ray {
                 if constexpr (Config::hasMinimap()) {
                     sline(x, y, yray.intersection, yray.boundary, color);
                 }
-            }
+            }          
             // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K which has been pre-multiplied into the view-filter lookup-table.
             const int height = static_cast<int>(cos_table[ray] / min_dist);                          
             const int clipped_height = (height > VIEWPORT_HEIGHT) ? VIEWPORT_HEIGHT : height;
             const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optimization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.             
             const int bottom = (top + clipped_height)-1; //we're off by one, overdrawing 1px to the left and bottom of the viewport. 
-            const int sliver_x = (VIEWPORT_RIGHT - ray)-1; //q&d fix by compensating here, for now. 
-            _setcolor(color);
-            _moveto(sliver_x, top);
-            _lineto(sliver_x, bottom); 
+            const int sliver_x = (VIEWPORT_RIGHT - ray)-1; //q&d fix by compensating here, for now.         
+            _setcolor(color);            
+            drawLine(sliver_x, top, sliver_x, bottom);
             if (++view_angle >= ANGLE_360) {
                 view_angle = 0; //reset angle back to zero
             }
@@ -306,7 +298,7 @@ class Ray {
     } 
 
     // compute first vertical line that could be intersected with ray
-    RayBegin init_horizontal_ray(int x, int y, int view_angle) const noexcept {
+    RayBegin init_horizontal_ray(const int x, const int y, const int view_angle) const noexcept {
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
         const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
         const int x_delta = FACING_RIGHT ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next vertical line (cell boundary)
@@ -315,7 +307,7 @@ class Ray {
         return RayBegin{ yi, x_bound, x_delta, next_cell_direction };
     }
 
-    RayBegin init_vertical_ray(int x, int y, int view_angle) const noexcept {
+    RayBegin init_vertical_ray(const int x, const int y, const int view_angle) const noexcept {
         const auto FACING_UP = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
         const int y_bound = FACING_UP ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
         const int y_delta = FACING_UP ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
@@ -324,8 +316,8 @@ class Ray {
         return RayBegin{ xi, y_bound, y_delta, next_cell_direction };
     }
 
-    RayEnd cast_horizontal(int x, int y, int view_angle) const noexcept  {       
-        auto [yi,  x_bound, x_delta, next_x_cell] = init_horizontal_ray(x, y, view_angle);         
+    RayEnd find_vertical_wall(const int x, const int y, const int view_angle) const noexcept  {
+        auto [yi,  x_bound, x_delta, next_x_cell] = init_horizontal_ray(x, y, view_angle); // cast a ray horizontally, along the x-axis, to intersect with vertical walls
         RayEnd result;
         while (x_bound < WORLD_SIZE) {
             const int cell_x = ((x_bound + next_x_cell) >> CELL_SIZE_FP); //Optimization: shift instead of divide, might help the Arduboy
@@ -343,8 +335,8 @@ class Ray {
         return result;          
     }  
   
-    RayEnd cast_vertical(int x, int y, int view_angle) const noexcept {        
-        auto [xi, y_bound, y_delta, next_y_cell] = init_vertical_ray(x, y, view_angle);
+    RayEnd find_horizontal_wall(const int x, const int y, const int view_angle) const noexcept {
+        auto [xi, y_bound, y_delta, next_y_cell] = init_vertical_ray(x, y, view_angle); ///ast a ray vertically, along the y-axis, to intersect with horizontal walls
         RayEnd result;
         while(y_bound < WORLD_SIZE){
             const int cell_x = static_cast<int>(xi) >> CELL_SIZE_FP;   // the current cell that the ray is in             
@@ -353,7 +345,7 @@ class Ray {
                 xi += x_step[view_angle]; //compute next X intercept
                 y_bound += y_delta;
                 continue;
-            }
+            }         
             result.distance = (xi - x) * inv_cos_table[view_angle];
             result.boundary = y_bound;
             result.intersection = static_cast<int>(xi);                                        
@@ -362,7 +354,7 @@ class Ray {
         return result;
     } 
 
-    void clearWindow() {
+    void clearWindow() const noexcept {
         _setcolor(Black);
         _r.clear();
         _setcolor(Gray);
@@ -370,10 +362,10 @@ class Ray {
         _setcolor(Brown);
         _rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_HORIZON, VIEWPORT_RIGHT, VIEWPORT_BOTTOM);
         _setcolor(DarkRed);
-         _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT-1, VIEWPORT_TOP-1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around viewport
+        _rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT-1, VIEWPORT_TOP-1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around viewport
     }
 
-    void updateViewPoint() {       
+    void updateViewPoint()  {       
         _viewPoint.dx = 0.0f;
         _viewPoint.dy = 0.0f;                  
         if (_input.isButtonDown(MouseButton::LEFT)) {
@@ -418,12 +410,12 @@ class Ray {
         // test if user has bumped into a wall i.e. test if there is a cell within the direction of motion, if so back up!                               
         const int x_cell = _viewPoint.x / CELL_SIZE;
         const int y_cell = _viewPoint.y / CELL_SIZE;                
-        const int x_sub_cell = _viewPoint.x % CELL_SIZE; // compute position within the cell
-        const int y_sub_cell = _viewPoint.y % CELL_SIZE;          
-       
         if (isWall(x_cell, y_cell)) { //standing inside a wall, somehow. 
             return centerPlayerInCell(FIRST_VALID_CELL, FIRST_VALID_CELL);
         }
+
+        const int x_sub_cell = _viewPoint.x % CELL_SIZE; // compute position within the cell
+        const int y_sub_cell = _viewPoint.y % CELL_SIZE;                 
         if (_viewPoint.dx > 0 && isWall(x_cell + 1, y_cell)) {// moving right, towards a wall
             if (x_sub_cell > (CELL_SIZE - OVERBOARD)) {                
                 _viewPoint.x -= (x_sub_cell - (CELL_SIZE - OVERBOARD)); // back player up amount they stepped over the line
@@ -477,8 +469,7 @@ public:
             checkCollisions();
             if constexpr (Config::hasMinimap()) { Draw_2D_Map(); }            
             Ray_Caster(_viewPoint.x, _viewPoint.y, _viewPoint.angle);
-            _r.present();
-            SDL_Delay(16);
+            _r.present();         
         }
         return 0;
     }
