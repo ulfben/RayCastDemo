@@ -65,6 +65,7 @@ if (block == 0){
   - move it to a function to give it a name: "updateViewPoint"
   - replace magical literals, simplify expressions, etc. as per above.
   - create a private ViewPoint type, make it a member and replace the local x/z/angle with this member. (enables further refactorings, as we can now break the 143 line function into constituent parts)
+
 Bugs:
 + There's a crashing bug with the y-intersection going out of range, causing us to read out-of-bounds on the map and crashing. Temporary clamp the y-intersection value and come back later to debug the math.
 
@@ -87,16 +88,38 @@ Bugs:
 - added mouse interaction (teleport player by clicking on the map). Mainly done to help me understand the coordinate system.
 - begin digging out currently implicit values and give them names: resolution, FOV, ray count, map scale etc
 
+### Revision 5: 
+- activated hardware rendering and vsync with SDL2
+- made 2D map rendering a compile-time setting
+- simplified the drawing API (removed _moveto), which enabled me to const all methods
+- reduced the size of the lookup tables by ~23% (13,447kB -> 10,405kB @ 320x240px 60° FoV) :
+    - inverse cos and sin now share a table (realizing that sin(x) == cos(x+90))
+    - the cos lookup table now only cover FoV angles instead of the full 360 degrees 
+- removed multiple redundant constants and a bunch of calculations by commiting to some limitations
+    - a cell is always square, and a power-of-2
+    - the world is always square, and a power-of-2
+- split ray_caster into separate functions for horizontal and vertical walls, which massively clarifies their logic
+- fixed the off-by-1 error with the raycaster drawing on the (bottom and right) viewport boundaries.
+- split the code into separate files as a first step in creating a cross-platform facade
+    - Config (settings and constants)
+    - Graphics (drawing routines), 
+    - LevelData (map layout and isWall(x,y))
+    - ViewPoint (player position, view angle, movement code, collision checking)
+    - MiniMap
+   
 ### TODO:
-- move 2D map rendering to separate class, make optional. Potentially a compile time setting.
-- split ray_caster into separate functions for x and y, to avoid excessive branching (at the cost of some code duplication?)
+- organize the file hierarchy (visual studio added all new files to top-level directory)
+- clean up the mixed code styles (esp. function and method names)
+- convert globals to arguments where possible
+- convert namespaces to structs / classes where suitable
 - prepare for port to Arduboy 
   - provide a proper facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
   - provide a another facade for the input management 
   - try to minimize floating point arithmetic and the use of division... 
 
 ### Bugs: 
+- Broke clicking on the minimap to teleport
+- KeyMap can no longer be constexpr constructed.
 - The coordinate system is reversed in-world vs. on screen. Figure out why. Logic would be easier if we could change this.
-- The raycaster draws on the viewport boundaries (bottom and right). We're off by 1, someplace.
 - Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
   - need to figure out what the relationship between these values are.

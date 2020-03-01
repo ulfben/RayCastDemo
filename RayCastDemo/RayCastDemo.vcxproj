@@ -20,6 +20,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Config.h" />
+    <ClInclude Include="Graphics.h" />
+    <ClInclude Include="Keys.h" />
+    <ClInclude Include="LevelData.h" />
+    <ClInclude Include="MiniMap.h" />
     <ClInclude Include="src\InputManager.h" />
     <ClInclude Include="src\Ray.h" />
     <ClInclude Include="src\Renderer.h" />
@@ -27,6 +31,7 @@
     <ClInclude Include="src\SDLex.h" />
     <ClInclude Include="src\Utils.h" />
     <ClInclude Include="src\Window.h" />
+    <ClInclude Include="ViewPoint.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

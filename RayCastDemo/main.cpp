@@ -2,21 +2,36 @@
 #include <iostream>
 #include <string_view>
 #include "Config.h"
+#include "ViewPoint.h"
+#include "MiniMap.h"
 #include "src/SDLSystem.h"
 #include "src/Renderer.h"
 #include "src/Window.h"
 #include "src/InputManager.h"
 #include "src/Ray.h"
 
-
 int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
-	try {
+	try {		
 		SDLSystem _sdl;
-		Window _window{ Config::TITLE, Config::WIN_WIDTH, Config::WIN_HEIGHT };
+		Window _window{ Cfg::TITLE, Cfg::WIN_WIDTH, Cfg::WIN_HEIGHT };		
 		Renderer _r{ _window };	
-		InputManager _input{};
-		Ray ray{ _r, _input };
-		return ray.run();			
+		Graphics _g(_r);
+		InputManager _input{};				
+		Ray ray{};		
+		ViewPoint _viewPoint{ Cfg::START_POS_X, Cfg::START_POS_Y, ANGLE_45 };
+
+		while (!_input.quitRequested()) {
+			_input.update();						
+			_viewPoint.update(_input);
+			_viewPoint.checkCollisions();
+			ray.clearWindow(_g);			
+			if constexpr (Cfg::hasMinimap()) { 
+				MiniMap::render(_g);
+			}
+			ray.Ray_Caster(_g, _viewPoint.x, _viewPoint.y, _viewPoint.angle);
+			_g.present();
+		}
+		return 0;		
 	}
 	catch (const SDLInitError & e) {
 		std::cerr << "SDL initialization error: " << e.what() << std::endl;
