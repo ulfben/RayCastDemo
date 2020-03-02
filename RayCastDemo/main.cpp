@@ -1,9 +1,9 @@
 #define SDL_MAIN_HANDLED
 #include <iostream>
 #include <string_view>
-#include "Config.h"
-#include "ViewPoint.h"
-#include "MiniMap.h"
+#include "src/Config.h"
+#include "src/ViewPoint.h"
+#include "src/MiniMap.h"
 #include "src/SDLSystem.h"
 #include "src/Renderer.h"
 #include "src/Window.h"

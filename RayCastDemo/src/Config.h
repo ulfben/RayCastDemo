@@ -1,6 +1,6 @@
 #pragma once
-#include "src/SDLex.h"
-#include "src/Utils.h"
+#include "SDLex.h"
+#include "Utils.h"
 #include "Keys.h"
 #include <string_view>
 namespace Cfg {	

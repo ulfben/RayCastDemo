@@ -1,8 +1,8 @@
 #pragma once
 #include "SDLSystem.h"
+#include "Keys.h"
 #include <array>
 #include <algorithm>
-#include "../Keys.h"
 enum class MouseButton : size_t {
 	LEFT = SDL_BUTTON_LEFT,	   //1
 	MIDDLE = SDL_BUTTON_MIDDLE,//2

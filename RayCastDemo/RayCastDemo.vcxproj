@@ -19,19 +19,19 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Config.h" />
-    <ClInclude Include="Graphics.h" />
-    <ClInclude Include="Keys.h" />
-    <ClInclude Include="LevelData.h" />
-    <ClInclude Include="MiniMap.h" />
+    <ClInclude Include="src\Config.h" />
+    <ClInclude Include="src\Graphics.h" />
     <ClInclude Include="src\InputManager.h" />
+    <ClInclude Include="src\Keys.h" />
+    <ClInclude Include="src\LevelData.h" />
+    <ClInclude Include="src\MiniMap.h" />
     <ClInclude Include="src\RayCaster.h" />
     <ClInclude Include="src\Renderer.h" />
     <ClInclude Include="src\SDLSystem.h" />
     <ClInclude Include="src\SDLex.h" />
     <ClInclude Include="src\Utils.h" />
+    <ClInclude Include="src\ViewPoint.h" />
     <ClInclude Include="src\Window.h" />
-    <ClInclude Include="ViewPoint.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

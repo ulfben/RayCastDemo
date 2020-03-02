@@ -111,15 +111,13 @@ Bugs:
 ### Revision 6:
 - The coordinate system is no longer reversed in-world vs. on screen. This let me stop inverting axis in Ray_Caster, MiniMap::render() etc. 
 - cleaned up the mixed code styles (esp. function and method names)
-
+- re-organized the file hierarchy (visual studio added all new files to top-level directory)
 
 ### TODO:
-- organized the file hierarchy (visual studio added all new files to top-level directory)
 - convert globals to arguments where possible
-- convert namespaces to structs / classes where suitable
 - prepare for port to Arduboy 
   - provide a proper facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
-  - provide a another facade for the input management 
+  - provide another facade for the input management 
   
 ### Bugs: 
 - KeyMap can no longer be constexpr constructed.

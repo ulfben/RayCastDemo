@@ -7,7 +7,7 @@
 #include "InputManager.h"
 #include "SDLSystem.h"
 #include "Utils.h"
-#include "../MiniMap.h"
+#include "MiniMap.h"
 class RayCaster {    
     struct RayStart {
         float intersection = 0.0f; //the first possible intersection point

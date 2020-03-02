@@ -1,5 +1,5 @@
 #pragma once
-#include "src/Renderer.h"
+#include "Renderer.h"
 enum class RectStyle {
     OUTLINE,
     FILL

@@ -1,5 +1,5 @@
 #pragma once
-#include "src/SDLex.h"
+#include "SDLex.h"
 #include <algorithm>
 template<size_t N = 3>
 class Keys { //map multiple keys to single action. (eg. w + up + 8 for "walk forward")

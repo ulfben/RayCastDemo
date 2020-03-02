@@ -3,7 +3,7 @@
 #include "Config.h"
 #include "LevelData.h"
 #include "MiniMap.h"
-#include "src/InputManager.h"
+#include "InputManager.h"
 struct ViewPoint {
 	int x = 0, y = 0, angle = 0;
 	float dx = 0.0f, dy = 0.0f;
