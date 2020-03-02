@@ -98,6 +98,7 @@ Bugs:
 - removed multiple redundant constants and a bunch of calculations by commiting to some limitations
     - a cell is always square, and a power-of-2
     - the world is always square, and a power-of-2
+- replaced a lot of division with shifts
 - split ray_caster into separate functions for horizontal and vertical walls, which massively clarifies their logic
 - fixed the off-by-1 error with the raycaster drawing on the (bottom and right) viewport boundaries.
 - split the code into separate files as a first step in creating a cross-platform facade
@@ -107,6 +108,10 @@ Bugs:
     - ViewPoint (player position, view angle, movement code, collision checking)
     - MiniMap
    
+### Revision 6:
+- The coordinate system is no longer reversed in-world vs. on screen. This let me stop inverting axis in Ray_Caster, MiniMap::render() etc. 
+- 
+
 ### TODO:
 - organize the file hierarchy (visual studio added all new files to top-level directory)
 - clean up the mixed code styles (esp. function and method names)
@@ -115,11 +120,8 @@ Bugs:
 - prepare for port to Arduboy 
   - provide a proper facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
   - provide a another facade for the input management 
-  - try to minimize floating point arithmetic and the use of division... 
-
+  
 ### Bugs: 
-- Broke clicking on the minimap to teleport
 - KeyMap can no longer be constexpr constructed.
-- The coordinate system is reversed in-world vs. on screen. Figure out why. Logic would be easier if we could change this.
 - Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
   - need to figure out what the relationship between these values are.

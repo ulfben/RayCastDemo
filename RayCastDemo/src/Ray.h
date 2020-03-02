@@ -47,7 +47,7 @@ class Ray {
 
     void build_lookup_tables() noexcept {
         constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
-        for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {
+        for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {            
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0. 
             tan_table[ang] = std::tan(rad_angle);
             inv_tan_table[ang] = 1.0f / tan_table[ang];
@@ -55,14 +55,12 @@ class Ray {
             // equivalent to the slope of a line, if the tangent is wrong then the ray that is cast will be wrong
             if (ang >= ANGLE_0 && ang < ANGLE_180) { //upper half plane (eg. upper right & left quadrants)
                 y_step[ang] = std::abs(tan_table[ang] * CELL_SIZE);
-            }
-            else {
+            } else {
                 y_step[ang] = -std::abs(tan_table[ang] * CELL_SIZE);
             }
             if (ang >= ANGLE_90 && ang < ANGLE_270) { //left half plane (left up and down quads)
                 x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_SIZE);
-            }
-            else {
+            } else {
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_SIZE);
             }     
             //asymtotic rays goes to infinity. this test was originally handled in the ray caster inner loop, but never triggered during development. Moved to build, as sanity check.            
@@ -172,7 +170,7 @@ public:
                     color = VERTICAL_WALL_COLOR;
                 }
                 if constexpr (Cfg::hasMinimap()) {
-                    MiniMap::sline(g, x, y, xray.boundary, xray.intersection, color);
+                    MiniMap::drawLine(g, x, y, xray.boundary, xray.intersection, color);
                 }
             }
             else { // must have hit a horizontal wall first                            
@@ -180,15 +178,15 @@ public:
                     color = HORIZONTAL_WALL_COLOR;
                 }
                 if constexpr (Cfg::hasMinimap()) {
-                    MiniMap::sline(g, x, y, yray.intersection, yray.boundary, color);
+                    MiniMap::drawLine(g, x, y, yray.intersection, yray.boundary, color);
                 }
             }
             // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K which has been pre-multiplied into the view-filter lookup-table.
             const int height = static_cast<int>(cos_table[ray] / min_dist);
             const int clipped_height = (height > Cfg::VIEWPORT_HEIGHT) ? Cfg::VIEWPORT_HEIGHT : height;
             const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optimization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.             
-            const int bottom = (top + clipped_height) - 1; //we're off by one, overdrawing 1px to the left and bottom of the viewport. 
-            const int sliver_x = (VIEWPORT_RIGHT - ray) - 1; //q&d fix by compensating here, for now.         
+            const int bottom = (top + clipped_height)-1; //we're off by one, overdrawing 1px to the left and bottom of the viewport. 
+            const int sliver_x = ray;       
             g._setcolor(color);
             g.drawLine(sliver_x, top, sliver_x, bottom);
             if (++view_angle >= ANGLE_360) {

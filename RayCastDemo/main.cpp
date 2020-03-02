@@ -18,7 +18,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 		Graphics _g(_r);
 		InputManager _input{};				
 		Ray ray{};		
-		ViewPoint _viewPoint{ Cfg::START_POS_X, Cfg::START_POS_Y, ANGLE_45 };
+		ViewPoint _viewPoint{ Cfg::START_POS_X, Cfg::START_POS_Y, ANGLE_0 };
 
 		while (!_input.quitRequested()) {
 			_input.update();						

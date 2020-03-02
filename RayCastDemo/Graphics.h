@@ -51,7 +51,7 @@ struct Graphics{
     }
     void drawLine(int x1, int y1, int x2, int y2) const noexcept {
         _r.drawLine(x1, y1, x2, y2);
-    }
+    } 
     void _setpixel(int x, int y) const noexcept {
         _r.drawPoint(x, y);
     }

@@ -16,7 +16,7 @@ struct ViewPoint {
 		if (input.isButtonDown(MouseButton::LEFT)) {
 			const int mouseX = input.mouseX();
 			const int mouseY = input.mouseY();
-			const int mouseCellX =(mouseX / MiniMap::SCALED_CELL_SIZE);
+			const int mouseCellX = ((mouseX-MiniMap::MAP_LEFT) / MiniMap::SCALED_CELL_SIZE);
 			const int mouseCellY = mouseY / MiniMap::SCALED_CELL_SIZE;
 			std::cout << "x:" << mouseX << " y:" << mouseY << " / cellx:" << mouseCellX << " celly:" << mouseCellY << "\n";
 			if (!isWall(mouseCellX, mouseCellY)) {
@@ -25,12 +25,12 @@ struct ViewPoint {
 			}
 		}
 
-		if (input.isAnyKeyDown(Cfg::rotateRight)) {
+		if (input.isAnyKeyDown(Cfg::rotateLeft)) {
 			if ((angle -= Cfg::ROTATION_SPEED) < ANGLE_0) {
 				angle = ANGLE_360;
 			}
 		}
-		else if (input.isAnyKeyDown(Cfg::rotateLeft)) {
+		else if (input.isAnyKeyDown(Cfg::rotateRight)) {
 			if ((angle += Cfg::ROTATION_SPEED) >= ANGLE_360) {
 				angle = ANGLE_0;
 			}
