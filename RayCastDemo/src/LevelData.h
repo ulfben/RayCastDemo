@@ -25,8 +25,6 @@ static constexpr char WORLD[WORLD_ROWS][WORLD_COLUMNS] = { // world map
 };
 
 inline constexpr bool isWall(int x, int y) noexcept {
-    const auto LAST_ROW = (WORLD_ROWS - 1);
-   // y = LAST_ROW - y;
     if (x < FIRST_VALID_CELL || y < FIRST_VALID_CELL
         || x > LAST_VALID_CELL || y > LAST_VALID_CELL) {
         return true;

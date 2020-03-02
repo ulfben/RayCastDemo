@@ -4,7 +4,6 @@
 #include "Config.h"
 #include "LevelData.h"
 #include "Graphics.h"
-#include "InputManager.h"
 #include "SDLSystem.h"
 #include "Utils.h"
 #include "MiniMap.h"
