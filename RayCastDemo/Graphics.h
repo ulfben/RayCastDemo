@@ -4,7 +4,6 @@ enum class RectStyle {
     OUTLINE,
     FILL
 };
-
 //declare SDL_Color values for each color in the original LUT
 static constexpr SDL_Color Black = { 0, 0, 0 };
 static constexpr SDL_Color DarkBlue = { 0, 0, 139 };
@@ -41,21 +40,21 @@ struct Graphics{
     void present() const noexcept {
         _r.present();
     }
-    void _setcolor(int lutIndex) const noexcept {
+    void setColor(int lutIndex) const noexcept {
         SDL_assert(lutIndex > -1 && lutIndex < PALETTE_SIZE && "_setColor (int): invalid LUT color index specified, must be 0-15");
         const auto color = Palette[lutIndex];
         _r.setColor(color);
     }
-    void _setcolor(const SDL_Color& color) const noexcept {
+    void setColor(const SDL_Color& color) const noexcept {
         _r.setColor(color);
     }
     void drawLine(int x1, int y1, int x2, int y2) const noexcept {
         _r.drawLine(x1, y1, x2, y2);
     } 
-    void _setpixel(int x, int y) const noexcept {
+    void setPixel(int x, int y) const noexcept {
         _r.drawPoint(x, y);
     }
-    void _rectangle(RectStyle style, int left, int top, int right, int bottom) const noexcept {
+    void drawRectangle(RectStyle style, int left, int top, int right, int bottom) const noexcept {
         SDL_Rect rect{ left, top, right - left, bottom - top };
         if (style == RectStyle::FILL) {
             _r.drawFilledRect(rect);

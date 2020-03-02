@@ -9,21 +9,23 @@
 #include "Utils.h"
 #include "../MiniMap.h"
 class RayCaster {    
+    struct RayStart {
+        float intersection = 0.0f; //the first possible intersection point
+        int boundary = 0; // the next intersection point   
+        int delta = 0; // the amount needed to move to get to the next cell position
+        int next_cell = 0; //cell delta, to move left / right or up / down
+    };
     struct RayEnd {
         float distance = 0.0f; // the distance of intersection from the player
         int boundary = 0; // record intersections with cell boundaries        
         int intersection = 0; // used to save exact intersection point with a wall         
         bool operator <(const RayEnd& that) const noexcept { return distance < that.distance; };
-    };
-    struct RayBegin {
-        float intersection = 0.0f; //the first possible intersection point
-        int boundary = 0; // the next intersection point   
-        int delta = 0; // the amount needed to move to get to the next cell position
-        int next_cell = 0; //cell delta, to move left / right or up / down
-    };       
+    };    
     static constexpr auto WALL_BOUNDARY_COLOR = White;
     static constexpr auto VERTICAL_WALL_COLOR = LightGreen;
-    static constexpr auto HORIZONTAL_WALL_COLOR = DarkGreen;      
+    static constexpr auto HORIZONTAL_WALL_COLOR = DarkGreen;  
+    static constexpr auto CEILING_COLOR = Gray;
+    static constexpr auto FLOOR_COLOR = Brown;
     //320x240@60fov = K15000, 128x64@60fov = K7000
     static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)            
     //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be an even power-of-two >= WORLD_SIZE. Used to quickly round our position to nearest cell wall using bitwise AND.
@@ -64,8 +66,8 @@ class RayCaster {
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_SIZE);
             }     
             //asymtotic rays goes to infinity. this test was originally handled in the ray caster inner loop, but never triggered during development. Moved to build, as sanity check.            
-            SDL_assert(std::fabs(y_step[ang]) != 0 && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
-            SDL_assert(std::fabs(x_step[ang]) != 0 && "Potential asymtotic ray on the x-axis produced while building lookup tables.");                     
+            SDL_assert(std::fabs(y_step[ang]) != 0.0f && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
+            SDL_assert(std::fabs(x_step[ang]) != 0.0f && "Potential asymtotic ray on the x-axis produced while building lookup tables.");                     
             inv_sin_table[ang] = 1.0f / std::sin(rad_angle);         
         }
         auto end = std::end(inv_sin_table) - ANGLE_90;
@@ -81,28 +83,28 @@ class RayCaster {
         }
     }     
   
-    RayBegin initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {
+    RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
         const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
         const int x_delta = FACING_RIGHT ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next vertical line (cell boundary)
         const int next_cell_direction = FACING_RIGHT ? 0 : -1;        
         const float yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
-        return RayBegin{ yi, x_bound, x_delta, next_cell_direction };
+        return RayStart{ yi, x_bound, x_delta, next_cell_direction };
     }
 
-    RayBegin initVerticalRay(const int x, const int y, const int view_angle) const noexcept {
+    RayStart initVerticalRay(const int x, const int y, const int view_angle) const noexcept {
         const auto FACING_UP = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
         const int y_bound = FACING_UP ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
         const int y_delta = FACING_UP ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
         const int next_cell_direction = FACING_UP ? 0 : -1;                
         const float xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
-        return RayBegin{ xi, y_bound, y_delta, next_cell_direction };
+        return RayStart{ xi, y_bound, y_delta, next_cell_direction };
     }
 
     RayEnd findVerticalWall(const int x, const int y, const int view_angle) const noexcept  {
         auto [yi,  x_bound, x_delta, next_x_cell] = initHorizontalRay(x, y, view_angle); // cast a ray horizontally, along the x-axis, to intersect with vertical walls
         RayEnd result;
-        while (x_bound < WORLD_SIZE) {
+        while (x_bound > -1 && x_bound < WORLD_SIZE) {
             const int cell_x = ((x_bound + next_x_cell) >> CELL_SIZE_FP); //Optimization: shift instead of divide, might help the Arduboy
             const int cell_y = static_cast<int>(yi) >> CELL_SIZE_FP;                   
             if (!isWall(cell_x, cell_y)) {
@@ -121,7 +123,7 @@ class RayCaster {
     RayEnd findHorizontalWall(const int x, const int y, const int view_angle) const noexcept {
         auto [xi, y_bound, y_delta, next_y_cell] = initVerticalRay(x, y, view_angle); ///ast a ray vertically, along the y-axis, to intersect with horizontal walls
         RayEnd result;
-        while(y_bound < WORLD_SIZE){
+        while (y_bound > -1 && y_bound < WORLD_SIZE) {
             const int cell_x = static_cast<int>(xi) >> CELL_SIZE_FP;   // the current cell that the ray is in             
             const int cell_y = ((y_bound + next_y_cell) >> CELL_SIZE_FP);
             if (!isWall(cell_x, cell_y)) {
@@ -136,26 +138,23 @@ class RayCaster {
         }
         return result;
     }         
-
+    void clearView(const Graphics& g) const noexcept {        
+        g.setColor(CEILING_COLOR);
+        g.drawRectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_TOP, VIEWPORT_RIGHT, VIEWPORT_HORIZON);
+        g.setColor(FLOOR_COLOR);
+        g.drawRectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_HORIZON, VIEWPORT_RIGHT, VIEWPORT_BOTTOM);
+        g.setColor(DarkRed);
+        g.drawRectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //debugging: draw a rect around the viewport so we can see overdraw.
+    }
 public:
     RayCaster() {
         buildLookupTables();
     } 
-
-    void clearWindow(const Graphics& g) const noexcept {
-        g.clearScreen();
-        g._setcolor(Gray);
-        g._rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_TOP, VIEWPORT_RIGHT, VIEWPORT_HORIZON);
-        g._setcolor(Brown);
-        g._rectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_HORIZON, VIEWPORT_RIGHT, VIEWPORT_BOTTOM);
-        g._setcolor(DarkRed);
-        g._rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around viewport
-    }
-    
     void renderView(const Graphics& g, const int x, const int y, int view_angle) const noexcept {
         // This function casts out RAY_COUNT rays from the viewer and builds up the display based on the intersections with the walls.
         // The distance to the first horizontal and vertical edge is recorded. The closest intersection is the one used to draw the display.
         // The inverse of that distance is used to compute the height of the "sliver" of texture that will be drawn on the screen                
+        clearView(g); //draw ceciling and floor first.
         if ((view_angle -= HALF_FOV_ANGLE) < 0) { // compute starting angle from player. Field of view is FOV angles, subtract half of that from the current view angle
             view_angle = ANGLE_360 + view_angle;
         }
@@ -186,7 +185,7 @@ public:
             const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optimization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.             
             const int bottom = (top + clipped_height)-1; //we're off by one, overdrawing 1px to the left and bottom of the viewport. 
             const int sliver_x = ray;       
-            g._setcolor(color);
+            g.setColor(color);
             g.drawLine(sliver_x, top, sliver_x, bottom);
             if (++view_angle >= ANGLE_360) {
                 view_angle = 0; //reset angle back to zero

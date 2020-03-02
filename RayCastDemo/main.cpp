@@ -14,7 +14,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 	try {		
 		SDLSystem _sdl;
 		Window _window{ Cfg::TITLE, Cfg::WIN_WIDTH, Cfg::WIN_HEIGHT };		
-		Renderer _r{ _window };	
+		Renderer _r{ _window };	//TODO: can be hidden in graphics?
 		Graphics _g(_r);
 		InputManager _input{};				
 		RayCaster ray{};		
@@ -24,9 +24,9 @@ int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 			_input.update();						
 			_viewPoint.update(_input);
 			_viewPoint.checkCollisions();
-			ray.clearWindow(_g);			
+			_g.clearScreen();			
 			if constexpr (Cfg::hasMinimap()) { 
-				MiniMap::render(_g);
+				MiniMap::renderMap(_g);
 			}
 			ray.renderView(_g, _viewPoint.x, _viewPoint.y, _viewPoint.angle);
 			_g.present();

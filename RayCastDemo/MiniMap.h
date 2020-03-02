@@ -12,10 +12,10 @@ namespace MiniMap {
         y1 = (y1 >> Cfg::MAP_SCALE_FACTOR);
         x2 = MAP_LEFT + (x2 >> Cfg::MAP_SCALE_FACTOR);
         y2 = (y2 >> Cfg::MAP_SCALE_FACTOR);
-        g._setcolor(color);
+        g.setColor(color);
         g.drawLine(x1, y1, x2, y2);
     }
-    void render(const Graphics& g)  noexcept {
+    void renderMap(const Graphics& g)  noexcept {
         if constexpr (false == Cfg::hasMinimap()) { return; }        
         for (int row = 0; row < WORLD_ROWS; row++) {
             const auto top = (row * SCALED_CELL_SIZE);
@@ -25,12 +25,12 @@ namespace MiniMap {
                 const auto right = left + SCALED_CELL_SIZE - 1;
                 const auto block = WORLD[row][column];
                 if (block == 0) {
-                    g._setcolor(White);
-                    g._rectangle(RectStyle::OUTLINE, left, top, right, bottom);
+                    g.setColor(White);
+                    g.drawRectangle(RectStyle::OUTLINE, left, top, right, bottom);
                 }
                 else {
-                    g._setcolor(DarkGreen);
-                    g._rectangle(RectStyle::FILL, left, top, right, bottom);
+                    g.setColor(DarkGreen);
+                    g.drawRectangle(RectStyle::FILL, left, top, right, bottom);
                 }
             }
         }

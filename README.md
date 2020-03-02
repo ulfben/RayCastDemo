@@ -110,11 +110,11 @@ Bugs:
    
 ### Revision 6:
 - The coordinate system is no longer reversed in-world vs. on screen. This let me stop inverting axis in Ray_Caster, MiniMap::render() etc. 
-- 
+- cleaned up the mixed code styles (esp. function and method names)
+
 
 ### TODO:
-- organize the file hierarchy (visual studio added all new files to top-level directory)
-- clean up the mixed code styles (esp. function and method names)
+- organized the file hierarchy (visual studio added all new files to top-level directory)
 - convert globals to arguments where possible
 - convert namespaces to structs / classes where suitable
 - prepare for port to Arduboy 
