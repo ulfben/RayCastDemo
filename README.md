@@ -112,14 +112,15 @@ Bugs:
 - coordinate system is no longer reversed in-world vs. on screen. (let me stop inverting the axis in all rendering routines)
 - cleaned up the mixed code styles (esp. function and method names)
 - re-organized the file hierarchy (visual studio added all new files to top-level directory)
+- ... more t/c. 
 
 ### TODO:
-- convert globals to arguments where possible
+- convert globals to arguments where possible, to make dependencies explicit
 - prepare for port to Arduboy 
-  - provide a proper facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
-  - provide another facade for the input management 
+  - provide a Graphics-facade for the RayCaster to use for rendering - based on SDL2 or Arduboy2 or whatever else one might want to run on.
+  - provide another facade for the input management
   
 ### Bugs: 
-- KeyMap can no longer be constexpr constructed.
+- KeyMap can no longer be constexpr constructed for some reason?
 - Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
   - need to figure out what the relationship between these values are.
