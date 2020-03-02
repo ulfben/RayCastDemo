@@ -6,6 +6,7 @@ namespace MiniMap {
     static constexpr auto MAP_HEIGHT = WORLD_SIZE >> Cfg::MAP_SCALE_FACTOR; //target width and height of the minimap, in pixels. 
     static constexpr auto SCALED_CELL_SIZE = Cfg::CELL_SIZE >> Cfg::MAP_SCALE_FACTOR;
     static constexpr auto MAP_LEFT = VIEWPORT_RIGHT;
+    
     void drawLine(const Graphics& g, int x1, int y1, int x2, int y2, const SDL_Color& color) noexcept {  
         x1 = MAP_LEFT + (x1 >> Cfg::MAP_SCALE_FACTOR);
         y1 = (y1 >> Cfg::MAP_SCALE_FACTOR);

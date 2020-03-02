@@ -25,7 +25,7 @@
     <ClInclude Include="LevelData.h" />
     <ClInclude Include="MiniMap.h" />
     <ClInclude Include="src\InputManager.h" />
-    <ClInclude Include="src\Ray.h" />
+    <ClInclude Include="src\RayCaster.h" />
     <ClInclude Include="src\Renderer.h" />
     <ClInclude Include="src\SDLSystem.h" />
     <ClInclude Include="src\SDLex.h" />

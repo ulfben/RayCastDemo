@@ -8,7 +8,7 @@
 #include "SDLSystem.h"
 #include "Utils.h"
 #include "../MiniMap.h"
-class Ray {    
+class RayCaster {    
     struct RayEnd {
         float distance = 0.0f; // the distance of intersection from the player
         int boundary = 0; // record intersections with cell boundaries        
@@ -45,7 +45,7 @@ class Ray {
     // cos table used to fix view distortion caused by radial projection (eg: cancel out fishbowl effect)
     std::array<float, HALF_FOV_ANGLE * 2 + 1> cos_table;
 
-    void build_lookup_tables() noexcept {
+    void buildLookupTables() noexcept {
         constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
         for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {            
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0. 
@@ -79,10 +79,9 @@ class Ray {
             const auto index = ang + HALF_FOV_ANGLE;
             cos_table[index] = (K / std::cos(rad_angle));
         }
-    }
-        
-    // compute first vertical line that could be intersected with ray
-    RayBegin init_horizontal_ray(const int x, const int y, const int view_angle) const noexcept {
+    }     
+  
+    RayBegin initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
         const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
         const int x_delta = FACING_RIGHT ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next vertical line (cell boundary)
@@ -91,7 +90,7 @@ class Ray {
         return RayBegin{ yi, x_bound, x_delta, next_cell_direction };
     }
 
-    RayBegin init_vertical_ray(const int x, const int y, const int view_angle) const noexcept {
+    RayBegin initVerticalRay(const int x, const int y, const int view_angle) const noexcept {
         const auto FACING_UP = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
         const int y_bound = FACING_UP ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
         const int y_delta = FACING_UP ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
@@ -100,8 +99,8 @@ class Ray {
         return RayBegin{ xi, y_bound, y_delta, next_cell_direction };
     }
 
-    RayEnd find_vertical_wall(const int x, const int y, const int view_angle) const noexcept  {
-        auto [yi,  x_bound, x_delta, next_x_cell] = init_horizontal_ray(x, y, view_angle); // cast a ray horizontally, along the x-axis, to intersect with vertical walls
+    RayEnd findVerticalWall(const int x, const int y, const int view_angle) const noexcept  {
+        auto [yi,  x_bound, x_delta, next_x_cell] = initHorizontalRay(x, y, view_angle); // cast a ray horizontally, along the x-axis, to intersect with vertical walls
         RayEnd result;
         while (x_bound < WORLD_SIZE) {
             const int cell_x = ((x_bound + next_x_cell) >> CELL_SIZE_FP); //Optimization: shift instead of divide, might help the Arduboy
@@ -119,8 +118,8 @@ class Ray {
         return result;          
     }  
   
-    RayEnd find_horizontal_wall(const int x, const int y, const int view_angle) const noexcept {
-        auto [xi, y_bound, y_delta, next_y_cell] = init_vertical_ray(x, y, view_angle); ///ast a ray vertically, along the y-axis, to intersect with horizontal walls
+    RayEnd findHorizontalWall(const int x, const int y, const int view_angle) const noexcept {
+        auto [xi, y_bound, y_delta, next_y_cell] = initVerticalRay(x, y, view_angle); ///ast a ray vertically, along the y-axis, to intersect with horizontal walls
         RayEnd result;
         while(y_bound < WORLD_SIZE){
             const int cell_x = static_cast<int>(xi) >> CELL_SIZE_FP;   // the current cell that the ray is in             
@@ -139,8 +138,8 @@ class Ray {
     }         
 
 public:
-    Ray() {
-        build_lookup_tables();
+    RayCaster() {
+        buildLookupTables();
     } 
 
     void clearWindow(const Graphics& g) const noexcept {
@@ -153,7 +152,7 @@ public:
         g._rectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //draw line around viewport
     }
     
-    void Ray_Caster(const Graphics& g, const int x, const int y, int view_angle) const noexcept {
+    void renderView(const Graphics& g, const int x, const int y, int view_angle) const noexcept {
         // This function casts out RAY_COUNT rays from the viewer and builds up the display based on the intersections with the walls.
         // The distance to the first horizontal and vertical edge is recorded. The closest intersection is the one used to draw the display.
         // The inverse of that distance is used to compute the height of the "sliver" of texture that will be drawn on the screen                
@@ -161,8 +160,8 @@ public:
             view_angle = ANGLE_360 + view_angle;
         }
         for (int ray = 0; ray < RAY_COUNT; ray++) {
-            RayEnd xray = find_vertical_wall(x, y, view_angle);  //cast a ray along the x-axis to intersect with vertical walls
-            RayEnd yray = find_horizontal_wall(x, y, view_angle); //cast a ray along the y-axis to intersect with horizontal walls
+            RayEnd xray = findVerticalWall(x, y, view_angle);  //cast a ray along the x-axis to intersect with vertical walls
+            RayEnd yray = findHorizontalWall(x, y, view_angle); //cast a ray along the y-axis to intersect with horizontal walls
             SDL_Color color = WALL_BOUNDARY_COLOR;
             const float min_dist = (xray < yray) ? xray.distance : yray.distance;
             if (xray < yray) { // there was a vertical wall closer than a horizontal wall                

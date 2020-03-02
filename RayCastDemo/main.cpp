@@ -8,7 +8,7 @@
 #include "src/Renderer.h"
 #include "src/Window.h"
 #include "src/InputManager.h"
-#include "src/Ray.h"
+#include "src/RayCaster.h"
 
 int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 	try {		
@@ -17,7 +17,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 		Renderer _r{ _window };	
 		Graphics _g(_r);
 		InputManager _input{};				
-		Ray ray{};		
+		RayCaster ray{};		
 		ViewPoint _viewPoint{ Cfg::START_POS_X, Cfg::START_POS_Y, ANGLE_0 };
 
 		while (!_input.quitRequested()) {
@@ -28,7 +28,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 			if constexpr (Cfg::hasMinimap()) { 
 				MiniMap::render(_g);
 			}
-			ray.Ray_Caster(_g, _viewPoint.x, _viewPoint.y, _viewPoint.angle);
+			ray.renderView(_g, _viewPoint.x, _viewPoint.y, _viewPoint.angle);
 			_g.present();
 		}
 		return 0;		
