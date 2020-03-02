@@ -83,20 +83,20 @@ class RayCaster {
         }
     }     
   
-    RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {
+    RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {        
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
         const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
         const int x_delta = FACING_RIGHT ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next vertical line (cell boundary)
-        const int next_cell_direction = FACING_RIGHT ? 0 : -1;        
+        const int next_cell_direction = FACING_RIGHT ? 0 : -1;  //x coordinates increase to the left, and decrease to the right      
         const float yi = tan_table[view_angle] * (x_bound - x) + y; // based on first possible vertical intersection line, compute Y intercept, so that casting can begin                                
         return RayStart{ yi, x_bound, x_delta, next_cell_direction };
     }
 
     RayStart initVerticalRay(const int x, const int y, const int view_angle) const noexcept {
-        const auto FACING_UP = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
-        const int y_bound = FACING_UP ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
-        const int y_delta = FACING_UP ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
-        const int next_cell_direction = FACING_UP ? 0 : -1;                
+        const auto FACING_DOWN = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
+        const int y_bound = FACING_DOWN ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
+        const int y_delta = FACING_DOWN ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
+        const int next_cell_direction = FACING_DOWN ? 0 : -1; //remember: y coordinates increase as we move down (south) in the world, and decrease towards the top (north)               
         const float xi = inv_tan_table[view_angle] * (y_bound - y) + x; // based on first possible horizontal intersection line, compute X intercept, so that casting can begin              
         return RayStart{ xi, y_bound, y_delta, next_cell_direction };
     }

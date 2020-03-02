@@ -11,7 +11,7 @@ namespace Cfg {
 	static constexpr auto MAP_SCALE_FACTOR = 2; //how many left shifts to perform (eg. 4 times smaller than the actual world)
 	static constexpr int WIN_WIDTH = 640;
 	static constexpr int WIN_HEIGHT = 480;	
-	static constexpr auto VIEWPORT_WIDTH = 320; //TODO: Some combinations of viewport width & FOV will result in 1 pixel gaps being rendered when facing up (90), down (270) or right (360).
+	static constexpr auto VIEWPORT_WIDTH = 320;
 	static constexpr auto VIEWPORT_HEIGHT = 240;
 	static constexpr auto VIEWPORT_LEFT = 0;
 	static constexpr auto VIEWPORT_TOP = 0;

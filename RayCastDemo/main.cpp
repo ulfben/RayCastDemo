@@ -14,7 +14,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 	try {		
 		SDLSystem _sdl;
 		Window _window{ Cfg::TITLE, Cfg::WIN_WIDTH, Cfg::WIN_HEIGHT };		
-		Renderer _r{ _window };	//TODO: can be hidden in graphics?
+		Renderer _r{ _window };
 		Graphics _g(_r);
 		InputManager _input{};				
 		RayCaster ray{};		
