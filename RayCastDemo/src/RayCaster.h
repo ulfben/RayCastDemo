@@ -161,10 +161,10 @@ public:
             RayEnd xray = findVerticalWall(x, y, view_angle);  //cast a ray along the x-axis to intersect with vertical walls
             RayEnd yray = findHorizontalWall(x, y, view_angle); //cast a ray along the y-axis to intersect with horizontal walls
             SDL_Color color = WALL_BOUNDARY_COLOR;
-            const float min_dist = (xray < yray) ? xray.distance : yray.distance;
+            const float min_dist = (xray < yray) ? xray.distance : yray.distance;           
             if (xray < yray) { // there was a vertical wall closer than a horizontal wall                
                 if (xray.intersection % CELL_SIZE > 1) {
-                    color = VERTICAL_WALL_COLOR;
+                    color = VERTICAL_WALL_COLOR;                    
                 }
                 if constexpr (Cfg::hasMinimap()) {
                     MiniMap::drawLine(g, x, y, xray.boundary, xray.intersection, color);
@@ -181,11 +181,10 @@ public:
             // height of the sliver is based on the inverse distance to the intersection. Closer is bigger, so: height = 1/dist. However, 1 is too low a factor to look good. Thus the constant K which has been pre-multiplied into the view-filter lookup-table.
             const int height = static_cast<int>(cos_table[ray] / min_dist);
             const int clipped_height = (height > Cfg::VIEWPORT_HEIGHT) ? Cfg::VIEWPORT_HEIGHT : height;
-            const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optimization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.             
-            const int bottom = (top + clipped_height)-1; //we're off by one, overdrawing 1px to the left and bottom of the viewport. 
+            const int top = VIEWPORT_HORIZON - (clipped_height >> 1); //Optimization: height >> 1 == height / 2. slivers are drawn symmetrically around the viewport horizon.                       
             const int sliver_x = ray;       
-            g.setColor(color);
-            g.drawLine(sliver_x, top, sliver_x, bottom);
+            g.setColor(color);           
+            g.drawVerticalLine(sliver_x, top, clipped_height - 1);              
             if (++view_angle >= ANGLE_360) {
                 view_angle = 0; //reset angle back to zero
             }

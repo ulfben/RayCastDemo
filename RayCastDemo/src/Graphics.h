@@ -51,6 +51,23 @@ struct Graphics{
     void drawLine(int x1, int y1, int x2, int y2) const noexcept {
         _r.drawLine(x1, y1, x2, y2);
     } 
+    void drawVerticalLine(int x, int y, int height) const noexcept { //future optimization possibility, particularly on Arduboy (fastVLine / fastHLine). 
+        _r.drawLine(x, y, x, y+height); 
+    }
+    //horrible first attempt at dithering, prepping for Ardubyoy 2-bit display (eg. only black & white)
+    //note to self: 
+        // will have to stop drawing floor & ceiling
+        // will need one "dither"-pattern for horizontal walls, another for vertical walls
+            // could potentially be as dumb as rendering every other pixel for verts, and every other *line* for horizontals?
+    void drawDottedLine(int x, int y, int height) const noexcept { 
+        const int bottom = y + height;
+        int cursor = y; 
+        const int dashLength = 5;    
+        while (cursor < bottom) {
+            drawVerticalLine(x, cursor, dashLength); //should of course be buffered and sent to drawLine*s*            
+            cursor += (dashLength*2);            
+        }
+    }
     void setPixel(int x, int y) const noexcept {
         _r.drawPoint(x, y);
     }
