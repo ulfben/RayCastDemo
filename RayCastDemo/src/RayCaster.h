@@ -82,7 +82,7 @@ class RayCaster {
         }
     }     
   
-    RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {        
+    inline RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {        
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
         const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
         const int x_delta = FACING_RIGHT ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next vertical line (cell boundary)
@@ -91,7 +91,7 @@ class RayCaster {
         return RayStart{ yi, x_bound, x_delta, next_cell_direction };
     }
 
-    RayStart initVerticalRay(const int x, const int y, const int view_angle) const noexcept {
+    inline RayStart initVerticalRay(const int x, const int y, const int view_angle) const noexcept {
         const auto FACING_DOWN = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
         const int y_bound = FACING_DOWN ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
         const int y_delta = FACING_DOWN ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
