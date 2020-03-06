@@ -80,7 +80,9 @@ class RayCaster {
             const auto index = ang + HALF_FOV_ANGLE;
             cos_table[index] = (K / std::cos(rad_angle));
         }
-    }     
+    }
+
+
   
     inline RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {        
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
@@ -145,6 +147,15 @@ class RayCaster {
         g.setColor(DarkRed);
         g.drawRectangle(RectStyle::OUTLINE, VIEWPORT_LEFT - 1, VIEWPORT_TOP - 1, VIEWPORT_RIGHT + 1, VIEWPORT_BOTTOM + 1); //debugging: draw a rect around the viewport so we can see overdraw.
     }
+
+    //convenience function to print the source code for each table. Useful on devices (eg. arduboy) where the LUTs won't fit in RAM and must be stored in progmem.
+    template<typename T>
+    void printArrayDefinition(const char* name, T table, size_t size) const noexcept {
+        std::cout << "std::array<float, " << size << "> " << name << "{\n";
+        Utils::print(table, size);
+        std::cout << "};\n";
+    }
+    
 public:
     RayCaster() {
         buildLookupTables();
@@ -188,6 +199,14 @@ public:
             if (++view_angle >= ANGLE_360) {
                 view_angle = 0; //reset angle back to zero
             }
-        }
+        }  
+    }
+
+    void prettyPrintLUTs() const noexcept {
+        printArrayDefinition("tan_table", tan_table, tan_table.size());
+        printArrayDefinition("y_step", y_step, y_step.size());
+        printArrayDefinition("x_step", x_step, x_step.size());
+        printArrayDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size());
+        printArrayDefinition("cos_table", cos_table, cos_table.size());
     }
 };

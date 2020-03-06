@@ -11,8 +11,8 @@ namespace Cfg {
 	static constexpr auto MAP_SCALE_FACTOR = 2; //how many left shifts to perform (eg. 4 times smaller than the actual world)
 	static constexpr int WIN_WIDTH = 640;
 	static constexpr int WIN_HEIGHT = 480;	
-	static constexpr auto VIEWPORT_WIDTH = 320;
-	static constexpr auto VIEWPORT_HEIGHT = 240;
+	static constexpr auto VIEWPORT_WIDTH = 128;
+	static constexpr auto VIEWPORT_HEIGHT = 64;
 	static constexpr auto VIEWPORT_LEFT = 0;
 	static constexpr auto VIEWPORT_TOP = 0;
 	static constexpr auto CELL_SIZE = 64; //width and height of a cell in the game world, must be a power of 2.   	

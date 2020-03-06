@@ -1,5 +1,8 @@
 #pragma once
 #include <type_traits>
+#include <algorithm>
+#include <iostream>
+#include <iterator>
 namespace Utils {
 	using namespace std::literals::string_literals;
 	template <typename Enum>
@@ -41,5 +44,15 @@ namespace Utils {
 		return (x > left && x < right) && (y > top && y < bottom);
 	}
 
+	template <class Container>
+	static void print(const Container& v, const std::string& sep = ", "s) {
+		using T = typename Container::value_type;
+		std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>{std::cout, sep.c_str()});
+	}
 
+	template <class Container>
+	static void print(const Container& v, const size_t size, const std::string& sep = ", "s) {
+		using T = typename Container::value_type;
+		std::copy(std::begin(v), std::begin(v) + size, std::ostream_iterator<T>{std::cout, sep.c_str()});
+	}
 }
