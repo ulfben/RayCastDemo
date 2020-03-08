@@ -6,7 +6,9 @@
 #include "Graphics.h"
 #include "SDLSystem.h"
 #include "Utils.h"
+#include "StringUtils.h"
 #include "MiniMap.h"
+
 class RayCaster {    
     struct RayStart {
         float intersection = 0.0f; //the first possible intersection point
@@ -26,7 +28,7 @@ class RayCaster {
     static constexpr auto CEILING_COLOR = Gray;
     static constexpr auto FLOOR_COLOR = Brown;
     //320x240@60fov = K15000, 128x64@60fov = K7000
-    static constexpr auto K = 15000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)            
+    static constexpr auto K = 7000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)            
     //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be an even power-of-two >= WORLD_SIZE. Used to quickly round our position to nearest cell wall using bitwise AND.
     static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_SIZE) ? WORLD_SIZE : Utils::nextPowerOfTwo(WORLD_SIZE))- Cfg::CELL_SIZE;
 
@@ -150,9 +152,10 @@ class RayCaster {
 
     //convenience function to print the source code for each table. Useful on devices (eg. arduboy) where the LUTs won't fit in RAM and must be stored in progmem.
     template<typename T>
-    void printArrayDefinition(const char* name, T table, size_t size) const noexcept {
-        std::cout << "std::array<float, " << size << "> " << name << "{\n";
-        Utils::print(table, size);
+    void printArrayDefinition(const char* name, const T table, const size_t size) const noexcept {
+        //std::cout << "std::array<float, " << size << "> " << name << "{\n";
+        std::cout << "constexpr float " << name << "[" << size << "] PROGMEM {\n";
+        std::cout << StringUtils::join(table, size);
         std::cout << "};\n";
     }
     
@@ -207,6 +210,8 @@ public:
         printArrayDefinition("y_step", y_step, y_step.size());
         printArrayDefinition("x_step", x_step, x_step.size());
         printArrayDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size());
+        printArrayDefinition("inv_tan_table", inv_tan_table, inv_tan_table.size());
         printArrayDefinition("cos_table", cos_table, cos_table.size());
+        std::cout << "const float* inv_cos_table = &inv_sin_table[" << ANGLE_90 << "];\n";      
     }
 };

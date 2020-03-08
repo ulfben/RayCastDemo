@@ -55,4 +55,5 @@ namespace Utils {
 		using T = typename Container::value_type;
 		std::copy(std::begin(v), std::begin(v) + size, std::ostream_iterator<T>{std::cout, sep.c_str()});
 	}
+
 }
