@@ -112,6 +112,7 @@ Bugs:
 - coordinate system is no longer reversed in-world vs. on screen. (let me stop inverting the axis in all rendering routines)
 - cleaned up the mixed code styles (esp. function and method names)
 - re-organized the file hierarchy (visual studio added all new files to top-level directory)
+- converted LevelData to a bitmap representation (save 220 Byte of RAM, at the price of (potentially) slower look-up)
 - ... more t/c. 
 
 ### TODO:

@@ -346,3 +346,8 @@ healthchecksdb
 !SDL2.lib
 !SDL2main.lib
 !SDL2test.lib
+/RayCastDemo/main.asm
+/RayCastDemo/InputManager.asm
+/RayCastDemo/Window.asm
+/RayCastDemo/SDLSystem.asm
+/RayCastDemo/Renderer.asm
