@@ -203,12 +203,12 @@ public:
     }
 
     void prettyPrintLUTs() const noexcept {
-        printArrayDefinition("tan_table", tan_table, tan_table.size()-1);
-        printArrayDefinition("y_step", y_step, y_step.size()-1);
-        printArrayDefinition("x_step", x_step, x_step.size()-1);
-        printArrayDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size()-1);
-        printArrayDefinition("inv_tan_table", inv_tan_table, inv_tan_table.size()-1);
-        printArrayDefinition("cos_table", cos_table, cos_table.size()-1);
+        printArrayDefinition("tan_table", tan_table, tan_table.size());
+        printArrayDefinition("y_step", y_step, y_step.size());
+        printArrayDefinition("x_step", x_step, x_step.size());
+        printArrayDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size());
+        printArrayDefinition("inv_tan_table", inv_tan_table, inv_tan_table.size());
+        printArrayDefinition("cos_table", cos_table, cos_table.size());
         std::cout << "const float* inv_cos_table = &inv_sin_table[" << ANGLE_90 << "];\n";      
     }
 };
