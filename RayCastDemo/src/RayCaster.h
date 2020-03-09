@@ -33,12 +33,12 @@ class RayCaster {
     static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_SIZE) ? WORLD_SIZE : Utils::nextPowerOfTwo(WORLD_SIZE))- Cfg::CELL_SIZE;
 
     // tangent tables equivalent to slopes, used to compute initial intersections with ray
-    std::array<float, ANGLE_360 + 1> tan_table; 
-    std::array<float, ANGLE_360 + 1> inv_tan_table;
+    std::array<float, ANGLE_360> tan_table; 
+    std::array<float, ANGLE_360> inv_tan_table;
 
     // step tables used to find next intersections, equivalent to slopes times width and height of cell    
-    std::array<float, ANGLE_360 + 1> y_step; //x and y steps, used to find intersections after initial one is found
-    std::array<float, ANGLE_360 + 1> x_step;
+    std::array<float, ANGLE_360> y_step; //x and y steps, used to find intersections after initial one is found
+    std::array<float, ANGLE_360> x_step;
     
     // 1/cos and 1/sin tables used to compute distance of intersection very quickly  
     // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90.    
@@ -46,11 +46,11 @@ class RayCaster {
     float* inv_cos_table = &inv_sin_table[ANGLE_90]; //cos(X) == sin(X+90).    
 
     // cos table used to fix view distortion caused by radial projection (eg: cancel out fishbowl effect)
-    std::array<float, HALF_FOV_ANGLE * 2 + 1> cos_table;
+    std::array<float, HALF_FOV_ANGLE * 2> cos_table;
 
     void buildLookupTables() noexcept {
         constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
-        for (int ang = ANGLE_0; ang <= ANGLE_360; ang++) {            
+        for (int ang = ANGLE_0; ang < ANGLE_360; ang++) {            
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0. 
             tan_table[ang] = std::tan(rad_angle);
             inv_tan_table[ang] = 1.0f / tan_table[ang];
@@ -77,7 +77,7 @@ class RayCaster {
         // create view filter table. There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
         // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.  Without this we would see a fishbowl effect.
         // inverse cosine would be 1/cos(rad_angle), but 1 is too small to give us good sized slivers, hence the constant K which is arbitrarily chosen for what looks good. 
-        for (int ang = -HALF_FOV_ANGLE; ang <= HALF_FOV_ANGLE; ang++) {
+        for (int ang = -HALF_FOV_ANGLE; ang < HALF_FOV_ANGLE; ang++) {
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS);
             const auto index = ang + HALF_FOV_ANGLE;
             cos_table[index] = (K / std::cos(rad_angle));
@@ -155,8 +155,8 @@ class RayCaster {
     void printArrayDefinition(const char* name, const T table, const size_t size) const noexcept {
         //std::cout << "std::array<float, " << size << "> " << name << "{\n";
         std::cout << "constexpr float " << name << "[" << size << "] PROGMEM {\n";
-        std::cout << StringUtils::join(table, size);
-        std::cout << "};\n";
+        std::cout << "\t" << StringUtils::join(table, size, "f,");
+        std::cout << "f};\n";
     }
     
 public:
@@ -199,19 +199,19 @@ public:
             const int sliver_x = ray;       
             g.setColor(color);           
             g.drawVerticalLine(sliver_x, top, clipped_height - 1);              
-            if (++view_angle >= ANGLE_360) {
-                view_angle = 0; //reset angle back to zero
+            if (++view_angle == ANGLE_360) { 
+                view_angle = 0; //wrap angle back to zero
             }
         }  
     }
 
     void prettyPrintLUTs() const noexcept {
-        printArrayDefinition("tan_table", tan_table, tan_table.size());
-        printArrayDefinition("y_step", y_step, y_step.size());
-        printArrayDefinition("x_step", x_step, x_step.size());
-        printArrayDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size());
-        printArrayDefinition("inv_tan_table", inv_tan_table, inv_tan_table.size());
-        printArrayDefinition("cos_table", cos_table, cos_table.size());
+        printArrayDefinition("tan_table", tan_table, tan_table.size()-1);
+        printArrayDefinition("y_step", y_step, y_step.size()-1);
+        printArrayDefinition("x_step", x_step, x_step.size()-1);
+        printArrayDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size()-1);
+        printArrayDefinition("inv_tan_table", inv_tan_table, inv_tan_table.size()-1);
+        printArrayDefinition("cos_table", cos_table, cos_table.size()-1);
         std::cout << "const float* inv_cos_table = &inv_sin_table[" << ANGLE_90 << "];\n";      
     }
 };

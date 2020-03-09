@@ -48,7 +48,7 @@ split(const std::string& text, std::string_view delimiter = " "sv)
 }
 
 template <class Container>
-[[nodiscard]] std::string join(const Container values, size_t size, std::string delimiter = ","s){
+[[nodiscard]] std::string join(const Container values, size_t size, std::string_view delimiter = ","sv){
     using T = typename Container::value_type;    
     auto end = std::begin(values);
     std::advance(end, size);
@@ -57,7 +57,7 @@ template <class Container>
         end,
         std::string(),
         [delimiter](std::string a, T b) -> std::string {
-            std::string delim(a.length() > 0 ? delimiter : ""s);
+            std::string delim(a.length() > 0 ? delimiter : ""sv);
             return a + delim + std::to_string(b);
         });
 }
