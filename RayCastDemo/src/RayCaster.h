@@ -28,16 +28,16 @@ class RayCaster {
     static constexpr auto CEILING_COLOR = Gray;
     static constexpr auto FLOOR_COLOR = Brown;
     //320x240@60fov = K15000, 128x64@60fov = K7000
-    static constexpr auto K = 7000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square. (p.213)            
-    //Originally: 0xFFC0 (65472), which is 0xFFFF-CELL_WIDTH. The constant must be an even power-of-two >= WORLD_SIZE. Used to quickly round our position to nearest cell wall using bitwise AND.
+    static constexpr auto K = 7000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square.          
+    //The MAGIC_CONSTANT must be an even power-of-two >= WORLD_SIZE. Used to quickly round our position to nearest cell wall using bitwise AND.
     static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_SIZE) ? WORLD_SIZE : Utils::nextPowerOfTwo(WORLD_SIZE))- Cfg::CELL_SIZE;
 
     // tangent tables equivalent to slopes, used to compute initial intersections with ray
     std::array<float, ANGLE_360> tan_table; 
     std::array<float, ANGLE_360> inv_tan_table;
 
-    // step tables used to find next intersections, equivalent to slopes times width and height of cell    
-    std::array<float, ANGLE_360> y_step; //x and y steps, used to find intersections after initial one is found
+    // step tables used to find next intersection, equivalent to slopes times width and height of cell    
+    std::array<float, ANGLE_360> y_step; 
     std::array<float, ANGLE_360> x_step;
     
     // 1/cos and 1/sin tables used to compute distance of intersection very quickly  
@@ -49,7 +49,7 @@ class RayCaster {
     std::array<float, HALF_FOV_ANGLE * 2> cos_table;
 
     void buildLookupTables() noexcept {
-        constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f; //original hardcoded value: 3.272e-4f, or 0.0003272f, matching TWO_PI / MAX_NUMBER_OF_ANGLES.     
+        constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f;
         for (int ang = ANGLE_0; ang < ANGLE_360; ang++) {            
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0. 
             tan_table[ang] = std::tan(rad_angle);
@@ -65,8 +65,7 @@ class RayCaster {
                 x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_SIZE);
             } else {
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_SIZE);
-            }     
-            //asymtotic rays goes to infinity. this test was originally handled in the ray caster inner loop, but never triggered during development. Moved to build, as sanity check.            
+            }                 
             SDL_assert(std::fabs(y_step[ang]) != 0.0f && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
             SDL_assert(std::fabs(x_step[ang]) != 0.0f && "Potential asymtotic ray on the x-axis produced while building lookup tables.");                     
             inv_sin_table[ang] = 1.0f / std::sin(rad_angle);         
@@ -74,9 +73,9 @@ class RayCaster {
         auto end = std::end(inv_sin_table) - ANGLE_90;
         std::copy_n(std::begin(inv_sin_table), ANGLE_90, end); //duplicate the first 90 sin values at the end of the array, to complete the joint sin & cos lookup table.
                 
-        // create view filter table. There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
-        // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.  Without this we would see a fishbowl effect.
-        // inverse cosine would be 1/cos(rad_angle), but 1 is too small to give us good sized slivers, hence the constant K which is arbitrarily chosen for what looks good. 
+        // create view filter table. Without this we would see a fishbowl effect. There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
+        // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale. Inverse cosine would be 1/cos(rad_angle), but 1 is too small to give us 
+        // good sized slivers, hence the constant K which is arbitrarily chosen for what looks good (eg. gives square wall segments at the current resolution and FOV settings)
         for (int ang = -HALF_FOV_ANGLE; ang < HALF_FOV_ANGLE; ang++) {
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS);
             const auto index = ang + HALF_FOV_ANGLE;
@@ -84,8 +83,6 @@ class RayCaster {
         }
     }
 
-
-  
     inline RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {        
         const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
         const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 

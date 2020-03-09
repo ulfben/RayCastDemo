@@ -23,8 +23,8 @@ namespace MiniMap {
             for (int column = 0; column < WORLD_COLUMNS; column++) {
                 const auto left = MAP_LEFT + (column * SCALED_CELL_SIZE);
                 const auto right = left + SCALED_CELL_SIZE - 1;
-                const auto block = WORLD[row][column];
-                if (block == 0) {
+                const auto block = isWall(column, row);
+                if (!block) {
                     g.setColor(White);
                     g.drawRectangle(RectStyle::OUTLINE, left, top, right, bottom);
                 }

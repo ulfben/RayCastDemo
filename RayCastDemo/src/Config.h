@@ -3,6 +3,7 @@
 #include "Utils.h"
 #include "Keys.h"
 #include <string_view>
+#define USE_BITMAP_LEVELDATA
 namespace Cfg {	
 	using KeyMap = Keys<3>;
 	using namespace std::literals::string_view_literals;	
