@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 #include <type_traits>
 #include <algorithm>
 #include <iostream>
@@ -50,10 +51,8 @@ namespace Utils {
 		std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>{std::cout, sep.c_str()});
 	}
 
-	template <class Container>
-	static void print(const Container& v, const size_t size, const std::string& sep = ", "s) {
-		using T = typename Container::value_type;
-		std::copy(std::begin(v), std::begin(v) + size, std::ostream_iterator<T>{std::cout, sep.c_str()});
+	constexpr inline float roundToNthDecimal(float value, int precision=1000) noexcept {
+		assert(precision != 0);
+		return ((float)((int)(value * precision))) / precision;
 	}
-
 }

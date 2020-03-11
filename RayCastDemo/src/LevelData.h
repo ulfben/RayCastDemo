@@ -61,12 +61,14 @@ inline constexpr bool isWall(int x, int y) noexcept {
 }
 #endif // !USE_BITMAP_LEVELDATA
 
-static_assert(WORLD_ROWS == WORLD_COLUMNS && "The map must be square - WORLD_ROWS == WORLD_COLUMNS");
-static_assert(Utils::isPowerOfTwo(WORLD_SIZE) && "World width and height must be a power-of-2");
+static_assert(WORLD_ROWS == WORLD_COLUMNS && "Bad map data: The map must be square - WORLD_ROWS == WORLD_COLUMNS");
+static_assert(Utils::isPowerOfTwo(WORLD_SIZE) && "Bad map data: World width and height must be a power-of-2");
+static_assert(!isWall(FIRST_VALID_CELL, FIRST_VALID_CELL) && "Bad map data: FIRST_VALID_CELL must be an empty space.");
+static_assert(!isWall(LAST_VALID_CELL, LAST_VALID_CELL) && "Bad map data: LAST_VALID_CELL must be an empty space.");
+static_assert(isWall(FIRST_VALID_CELL, FIRST_VALID_CELL - 1) && "isWall() must returns true for out-of-bounds coordinates");
+static_assert(isWall(LAST_VALID_CELL+1, FIRST_VALID_CELL) && "isWall() must returns true for out-of-bounds coordinates");
 
-constexpr bool worldDataOK() noexcept {
-    static_assert(!isWall(FIRST_VALID_CELL, FIRST_VALID_CELL));
-    static_assert(!isWall(LAST_VALID_CELL, LAST_VALID_CELL));
+constexpr bool testIsWallLookup() noexcept {    
     static_assert(isWall(3, 3)); //test an arbitrary position that we know should be a wall
     for (int i = 0; i < WORLD_COLUMNS; i++) {
         assert(isWall(0, i)); //test first row, all wall
@@ -78,4 +80,4 @@ constexpr bool worldDataOK() noexcept {
     }
     return true;
 }
-static_assert(worldDataOK()); //execute at compile-time, I hope. Not sure how to validate this is happening?
+static_assert(testIsWallLookup()); //execute at compile-time, I hope. Not sure how to validate this is happening?

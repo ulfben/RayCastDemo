@@ -31,31 +31,32 @@ class RayCaster {
     static constexpr auto K = 7000.0f;// think of K as a combination of view distance and aspect ratio. Pick a value that looks good. In my case: that makes the block on screen look square.          
     //The MAGIC_CONSTANT must be an even power-of-two >= WORLD_SIZE. Used to quickly round our position to nearest cell wall using bitwise AND.
     static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_SIZE) ? WORLD_SIZE : Utils::nextPowerOfTwo(WORLD_SIZE))- Cfg::CELL_SIZE;
-
+    
     // tangent tables equivalent to slopes, used to compute initial intersections with ray
-    std::array<float, ANGLE_360> tan_table; 
-    std::array<float, ANGLE_360> inv_tan_table;
+    std::array<float, Cfg::TABLE_SIZE> tan_table;
+    std::array<float, Cfg::TABLE_SIZE> inv_tan_table;
 
     // step tables used to find next intersection, equivalent to slopes times width and height of cell    
-    std::array<float, ANGLE_360> y_step; 
-    std::array<float, ANGLE_360> x_step;
+    std::array<float, Cfg::TABLE_SIZE> y_step; //clamped to -512 - 512
+    std::array<float, Cfg::TABLE_SIZE> x_step; //clamped -512 - 512
     
     // 1/cos and 1/sin tables used to compute distance of intersection very quickly  
-    // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90.    
-    std::array<float, ANGLE_360 + ANGLE_90> inv_sin_table; //+90 degrees to make room for the tail-end of the offset cos values.    
+    // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90. 
+    //-1222.34 <-> 1222.31, 12 bit (2048+sign)
+    std::array<float, Cfg::TABLE_SIZE + ANGLE_90> inv_sin_table; //+90 degrees to make room for the tail-end of the offset cos values.    
     float* inv_cos_table = &inv_sin_table[ANGLE_90]; //cos(X) == sin(X+90).    
 
     // cos table used to fix view distortion caused by radial projection (eg: cancel out fishbowl effect)
-    std::array<float, HALF_FOV_ANGLE * 2> cos_table;
-
-    void buildLookupTables() noexcept {
+    std::array<float, HALF_FOV_ANGLE * 2> cos_table;  //7000 - 8079.09
+       
+    void buildLookupTables() noexcept  {
         constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f;
-        for (int ang = ANGLE_0; ang < ANGLE_360; ang++) {            
-            const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0. 
+        constexpr auto MAX_STEP = 512.0f; //seems we never need more than this, so let's cap the values in the LUT. (potentially allow us to use a smaller datatype later on)
+        for (int ang = ANGLE_0; ang < ANGLE_360; ang++) {
+            const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0.
             tan_table[ang] = std::tan(rad_angle);
             inv_tan_table[ang] = 1.0f / tan_table[ang];
-            // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant. Since the tangent is
-            // equivalent to the slope of a line, if the tangent is wrong then the ray that is cast will be wrong
+            // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant.
             if (ang >= ANGLE_0 && ang < ANGLE_180) { //upper half plane (eg. upper right & left quadrants)
                 y_step[ang] = std::abs(tan_table[ang] * CELL_SIZE);
             } else {
@@ -65,17 +66,21 @@ class RayCaster {
                 x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_SIZE);
             } else {
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_SIZE);
-            }                 
-            SDL_assert(std::fabs(y_step[ang]) != 0.0f && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
-            SDL_assert(std::fabs(x_step[ang]) != 0.0f && "Potential asymtotic ray on the x-axis produced while building lookup tables.");                     
-            inv_sin_table[ang] = 1.0f / std::sin(rad_angle);         
+            }
+            x_step[ang] = Utils::clamp(x_step[ang], -MAX_STEP, MAX_STEP); 
+            y_step[ang] = Utils::clamp(y_step[ang], -MAX_STEP, MAX_STEP);
+            assert(std::fabs(y_step[ang]) != 0.0f && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
+            assert(std::fabs(x_step[ang]) != 0.0f && "Potential asymtotic ray on the x-axis produced while building lookup tables.");
+            inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
         }
+
+        //duplicate the first 90 sin values at the end of the array, to complete the joint sin & cos lookup table.
         auto end = std::end(inv_sin_table) - ANGLE_90;
-        std::copy_n(std::begin(inv_sin_table), ANGLE_90, end); //duplicate the first 90 sin values at the end of the array, to complete the joint sin & cos lookup table.
-                
+        std::copy_n(std::begin(inv_sin_table), ANGLE_90, end);
+
         // create view filter table. Without this we would see a fishbowl effect. There is a cosine wave modulated on top of the view distance as a side effect of casting from a fixed point.
-        // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale. Inverse cosine would be 1/cos(rad_angle), but 1 is too small to give us 
-        // good sized slivers, hence the constant K which is arbitrarily chosen for what looks good (eg. gives square wall segments at the current resolution and FOV settings)
+        // to cancel this effect out, we multiple by the inverse of the cosine and the result is the proper scale.
+        // inverse cosine would be 1/cos(rad_angle), but 1 is too small to give us good sized slivers, hence the constant K which is arbitrarily chosen for what looks good.
         for (int ang = -HALF_FOV_ANGLE; ang < HALF_FOV_ANGLE; ang++) {
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS);
             const auto index = ang + HALF_FOV_ANGLE;
@@ -102,6 +107,8 @@ class RayCaster {
     }
 
     RayEnd findVerticalWall(const int x, const int y, const int view_angle) const noexcept  {
+        using namespace std::literals::string_view_literals;
+        using namespace std::literals::string_literals;
         auto [yi,  x_bound, x_delta, next_x_cell] = initHorizontalRay(x, y, view_angle); // cast a ray horizontally, along the x-axis, to intersect with vertical walls
         RayEnd result;
         while (x_bound > -1 && x_bound < WORLD_SIZE) {
@@ -116,7 +123,8 @@ class RayCaster {
             result.boundary = x_bound; // record intersections with cell boundaries
             result.intersection = static_cast<int>(yi);
             return result;                        
-        }        
+        }                
+        assert(false && "RayCaster: couldn't findVerticalWall(); Make sure isWall() returns true for out-of-bounds coordinates."); 
         return result;          
     }  
   
@@ -136,6 +144,7 @@ class RayCaster {
             result.intersection = static_cast<int>(xi);                                        
             return result;            
         }
+        assert(false && "RayCaster: couldn't findHorizontalWall(); Make sure isWall() returns true for out-of-bounds coordinates."); 
         return result;
     }         
     void clearView(const Graphics& g) const noexcept {        
@@ -149,11 +158,18 @@ class RayCaster {
 
     //convenience function to print the source code for each table. Useful on devices (eg. arduboy) where the LUTs won't fit in RAM and must be stored in progmem.
     template<typename T>
-    void printArrayDefinition(const char* name, const T table, const size_t size) const noexcept {
+    void printTableDefinition(const char* name, const T table, const size_t size) const noexcept {
         //std::cout << "std::array<float, " << size << "> " << name << "{\n";
         std::cout << "constexpr float " << name << "[" << size << "] PROGMEM {\n";
         std::cout << "\t" << StringUtils::join(table, size, "f,");
         std::cout << "f};\n";
+    }
+
+    //TODO: test truncation of lookup values - how much precision do we really need?           
+    template<typename Container>
+    void printTableData(const char* name, Container& t) const noexcept  {
+        const auto [min, max] = std::minmax_element(std::begin(t), std::end(t));
+        std::cout << name << "("<< t.size() << "): " << *min << " <-> " << *max << "\n";
     }
     
 public:
@@ -167,7 +183,7 @@ public:
         clearView(g); //draw ceciling and floor first.
         if ((view_angle -= HALF_FOV_ANGLE) < 0) { // compute starting angle from player. Field of view is FOV angles, subtract half of that from the current view angle
             view_angle = ANGLE_360 + view_angle;
-        }
+        }      
         for (int ray = 0; ray < RAY_COUNT; ray++) {
             RayEnd xray = findVerticalWall(x, y, view_angle);  //cast a ray along the x-axis to intersect with vertical walls
             RayEnd yray = findHorizontalWall(x, y, view_angle); //cast a ray along the y-axis to intersect with horizontal walls
@@ -203,12 +219,19 @@ public:
     }
 
     void prettyPrintLUTs() const noexcept {
-        printArrayDefinition("tan_table", tan_table, tan_table.size());
-        printArrayDefinition("y_step", y_step, y_step.size());
-        printArrayDefinition("x_step", x_step, x_step.size());
-        printArrayDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size());
-        printArrayDefinition("inv_tan_table", inv_tan_table, inv_tan_table.size());
-        printArrayDefinition("cos_table", cos_table, cos_table.size());
+        printTableDefinition("tan_table", tan_table, tan_table.size());
+        printTableDefinition("y_step", y_step, y_step.size());
+        printTableDefinition("x_step", x_step, x_step.size());
+        printTableDefinition("inv_sin_table", inv_sin_table, inv_sin_table.size());
+        printTableDefinition("inv_tan_table", inv_tan_table, inv_tan_table.size());
+        printTableDefinition("cos_table", cos_table, cos_table.size());
         std::cout << "const float* inv_cos_table = &inv_sin_table[" << ANGLE_90 << "];\n";      
+        
+        printTableData("tan_table", tan_table);
+        printTableData("y_step", y_step);
+        printTableData("x_step", x_step);
+        printTableData("inv_sin_table", inv_sin_table);
+        printTableData("inv_tan_table", inv_tan_table);
+        printTableData("cos_table", cos_table);
     }
 };
