@@ -41,8 +41,7 @@ class RayCaster {
     std::array<float, ANGLE_360> x_step;
     
     // 1/cos and 1/sin tables used to compute distance of intersection very quickly  
-    // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90. 
-    //-1222.34 <-> 1222.31, 12 bit (2048+sign)
+    // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90.     
     std::array<float, ANGLE_360 + ANGLE_90> inv_sin_table; //+90 degrees to make room for the tail-end of the offset cos values.    
     float* inv_cos_table = &inv_sin_table[ANGLE_90]; //cos(X) == sin(X+90).    
 
@@ -68,14 +67,15 @@ class RayCaster {
         for (int ang = ANGLE_0; ang < ANGLE_360; ang++) {
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0.
             tan_table[ang] = std::tan(rad_angle);
-            inv_tan_table[ang] = 1.0f / tan_table[ang];     
+            inv_tan_table[ang] = 1.0f / tan_table[ang];
+            inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
 
             // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant.
             if (isFacingDown(ang)) {
                 y_step[ang] = std::abs(tan_table[ang] * CELL_SIZE);
             } else {
                 assert(isFacingUp(ang) && "isFacingUp() should be the exact inverse of isFacingDown(). Have you changed the coordinate system?");
-                y_step[ang] = -std::abs(tan_table[ang] * CELL_SIZE); 
+                y_step[ang] = -std::abs(tan_table[ang] * CELL_SIZE);
             }
             if (isFacingLeft(ang)) {
                 x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_SIZE);
@@ -84,8 +84,7 @@ class RayCaster {
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_SIZE);
             }
             assert(std::fabs(y_step[ang]) != 0.0f && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
-            assert(std::fabs(x_step[ang]) != 0.0f && "Potential asymtotic ray on the x-axis produced while building lookup tables.");
-            inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
+            assert(std::fabs(x_step[ang]) != 0.0f && "Potential asymtotic ray on the x-axis produced while building lookup tables.");            
         }
 
         //duplicate the first 90 sin values at the end of the array, to complete the joint sin & cos lookup table.
@@ -159,6 +158,7 @@ class RayCaster {
         assert(false && "RayCaster: couldn't findHorizontalWall(); Make sure isWall() returns true for out-of-bounds coordinates."); 
         return result;
     }         
+
     void clearView(const Graphics& g) const noexcept {        
         g.setColor(CEILING_COLOR);
         g.drawRectangle(RectStyle::FILL, VIEWPORT_LEFT, VIEWPORT_TOP, VIEWPORT_RIGHT, VIEWPORT_HORIZON);
