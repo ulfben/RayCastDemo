@@ -33,42 +33,56 @@ class RayCaster {
     static constexpr auto MAGIC_CONSTANT = (Utils::isPowerOfTwo(WORLD_SIZE) ? WORLD_SIZE : Utils::nextPowerOfTwo(WORLD_SIZE))- Cfg::CELL_SIZE;
     
     // tangent tables equivalent to slopes, used to compute initial intersections with ray
-    std::array<float, Cfg::TABLE_SIZE> tan_table;
-    std::array<float, Cfg::TABLE_SIZE> inv_tan_table;
+    std::array<float, ANGLE_360> tan_table;
+    std::array<float, ANGLE_360> inv_tan_table;
 
     // step tables used to find next intersection, equivalent to slopes times width and height of cell    
-    std::array<float, Cfg::TABLE_SIZE> y_step; //clamped to -512 - 512
-    std::array<float, Cfg::TABLE_SIZE> x_step; //clamped -512 - 512
+    std::array<float, ANGLE_360> y_step;
+    std::array<float, ANGLE_360> x_step;
     
     // 1/cos and 1/sin tables used to compute distance of intersection very quickly  
     // Optimization: cos(X) == sin(X+90), so for cos lookups we can simply re-use the sin-table with an offset of ANGLE_90. 
     //-1222.34 <-> 1222.31, 12 bit (2048+sign)
-    std::array<float, Cfg::TABLE_SIZE + ANGLE_90> inv_sin_table; //+90 degrees to make room for the tail-end of the offset cos values.    
+    std::array<float, ANGLE_360 + ANGLE_90> inv_sin_table; //+90 degrees to make room for the tail-end of the offset cos values.    
     float* inv_cos_table = &inv_sin_table[ANGLE_90]; //cos(X) == sin(X+90).    
 
     // cos table used to fix view distortion caused by radial projection (eg: cancel out fishbowl effect)
-    std::array<float, HALF_FOV_ANGLE * 2> cos_table;  //7000 - 8079.09
+    std::array<float, HALF_FOV_ANGLE * 2> cos_table;
        
-    void buildLookupTables() noexcept  {
+    constexpr inline bool isFacingLeft(const int view_angle) const noexcept {
+        return (view_angle >= ANGLE_90 && view_angle < ANGLE_270);
+    }
+    constexpr inline bool isFacingRight(const int view_angle) const noexcept {
+        return (view_angle < ANGLE_90 || view_angle >= ANGLE_270);
+    }
+    constexpr inline bool isFacingDown(const int view_angle) const noexcept {
+        return (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
+    }
+    constexpr inline bool isFacingUp(const int view_angle) const noexcept {
+        return (view_angle >= ANGLE_180 && view_angle < ANGLE_360);
+    }
+
+    void buildLookupTables() noexcept {
         constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f;
         constexpr auto MAX_STEP = 512.0f; //seems we never need more than this, so let's cap the values in the LUT. (potentially allow us to use a smaller datatype later on)
         for (int ang = ANGLE_0; ang < ANGLE_360; ang++) {
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0.
             tan_table[ang] = std::tan(rad_angle);
-            inv_tan_table[ang] = 1.0f / tan_table[ang];
+            inv_tan_table[ang] = 1.0f / tan_table[ang];     
+
             // tangent has the incorrect signs in all quadrants except 1, so manually fix the signs of each quadrant.
-            if (ang >= ANGLE_0 && ang < ANGLE_180) { //upper half plane (eg. upper right & left quadrants)
+            if (isFacingDown(ang)) {
                 y_step[ang] = std::abs(tan_table[ang] * CELL_SIZE);
             } else {
-                y_step[ang] = -std::abs(tan_table[ang] * CELL_SIZE);
+                assert(isFacingUp(ang) && "isFacingUp() should be the exact inverse of isFacingDown(). Have you changed the coordinate system?");
+                y_step[ang] = -std::abs(tan_table[ang] * CELL_SIZE); 
             }
-            if (ang >= ANGLE_90 && ang < ANGLE_270) { //left half plane (left up and down quads)
+            if (isFacingLeft(ang)) {
                 x_step[ang] = -std::abs(inv_tan_table[ang] * CELL_SIZE);
             } else {
+                assert(isFacingRight(ang) && "isFacingRight() should be the exact inverse of isFacingDown(). Have you changed the coordinate system?");
                 x_step[ang] = std::abs(inv_tan_table[ang] * CELL_SIZE);
             }
-            x_step[ang] = Utils::clamp(x_step[ang], -MAX_STEP, MAX_STEP); 
-            y_step[ang] = Utils::clamp(y_step[ang], -MAX_STEP, MAX_STEP);
             assert(std::fabs(y_step[ang]) != 0.0f && "Potential asymtotic ray on the y-axis produced while building lookup tables.");
             assert(std::fabs(x_step[ang]) != 0.0f && "Potential asymtotic ray on the x-axis produced while building lookup tables.");
             inv_sin_table[ang] = 1.0f / std::sin(rad_angle);
@@ -89,7 +103,7 @@ class RayCaster {
     }
 
     inline RayStart initHorizontalRay(const int x, const int y, const int view_angle) const noexcept {        
-        const auto FACING_RIGHT = (view_angle < ANGLE_90 || view_angle >= ANGLE_270);        
+        const auto FACING_RIGHT = isFacingRight(view_angle);        
         const int x_bound = FACING_RIGHT ? CELL_SIZE + (x & MAGIC_CONSTANT) : (x & MAGIC_CONSTANT); //round x to nearest CELL_WIDTH (power-of-2), this is the first possible intersection point. 
         const int x_delta = FACING_RIGHT ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next vertical line (cell boundary)
         const int next_cell_direction = FACING_RIGHT ? 0 : -1;  //x coordinates increase to the left, and decrease to the right      
@@ -98,7 +112,7 @@ class RayCaster {
     }
 
     inline RayStart initVerticalRay(const int x, const int y, const int view_angle) const noexcept {
-        const auto FACING_DOWN = (view_angle >= ANGLE_0 && view_angle < ANGLE_180);
+        const auto FACING_DOWN = isFacingDown(view_angle);
         const int y_bound = FACING_DOWN ? CELL_SIZE  + (y & MAGIC_CONSTANT) : (y & MAGIC_CONSTANT); //Optimization: round y to nearest CELL_HEIGHT (power-of-2) 
         const int y_delta = FACING_DOWN ? CELL_SIZE : -CELL_SIZE; // the amount needed to move to get to the next horizontal line (cell boundary)
         const int next_cell_direction = FACING_DOWN ? 0 : -1; //remember: y coordinates increase as we move down (south) in the world, and decrease towards the top (north)               
@@ -106,9 +120,7 @@ class RayCaster {
         return RayStart{ xi, y_bound, y_delta, next_cell_direction };
     }
 
-    RayEnd findVerticalWall(const int x, const int y, const int view_angle) const noexcept  {
-        using namespace std::literals::string_view_literals;
-        using namespace std::literals::string_literals;
+    RayEnd findVerticalWall(const int x, const int y, const int view_angle) const noexcept  {    
         auto [yi,  x_bound, x_delta, next_x_cell] = initHorizontalRay(x, y, view_angle); // cast a ray horizontally, along the x-axis, to intersect with vertical walls
         RayEnd result;
         while (x_bound > -1 && x_bound < WORLD_SIZE) {
@@ -158,9 +170,9 @@ class RayCaster {
 
     //convenience function to print the source code for each table. Useful on devices (eg. arduboy) where the LUTs won't fit in RAM and must be stored in progmem.
     template<typename T>
-    void printTableDefinition(const char* name, const T table, const size_t size) const noexcept {
-        //std::cout << "std::array<float, " << size << "> " << name << "{\n";
-        std::cout << "constexpr float " << name << "[" << size << "] PROGMEM {\n";
+    void printTableDefinition(const char* name, const T table, const size_t size) const noexcept {        
+        //std::cout << "std::array<float, " << size << "> " << name << "{\n"; //PC
+        std::cout << "constexpr float " << name << "[" << size << "] PROGMEM {\n"; //ArduBoy
         std::cout << "\t" << StringUtils::join(table, size, "f,");
         std::cout << "f};\n";
     }
