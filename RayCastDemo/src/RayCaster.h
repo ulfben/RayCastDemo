@@ -62,8 +62,7 @@ class RayCaster {
     }
 
     void buildLookupTables() noexcept {
-        constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f;
-        constexpr auto MAX_STEP = 512.0f; //seems we never need more than this, so let's cap the values in the LUT. (potentially allow us to use a smaller datatype later on)
+        constexpr auto TENTH_OF_A_RADIAN = ANGLE_TO_RADIANS * 0.1f;      
         for (int ang = ANGLE_0; ang < ANGLE_360; ang++) {
             const auto rad_angle = TENTH_OF_A_RADIAN + (ang * ANGLE_TO_RADIANS); //adding a small offset to avoid edge cases with 0.
             tan_table[ang] = std::tan(rad_angle);

@@ -40,11 +40,6 @@ struct Graphics{
     void present() const noexcept {
         _r.present();
     }
-    void setColor(int lutIndex) const noexcept {
-        SDL_assert(lutIndex > -1 && lutIndex < PALETTE_SIZE && "_setColor (int): invalid LUT color index specified, must be 0-15");
-        const auto color = Palette[lutIndex];
-        _r.setColor(color);
-    }
     void setColor(const SDL_Color& color) const noexcept {
         _r.setColor(color);
     }
@@ -53,21 +48,7 @@ struct Graphics{
     } 
     void drawVerticalLine(int x, int y, int height) const noexcept { //future optimization possibility, particularly on Arduboy (fastVLine / fastHLine). 
         _r.drawLine(x, y, x, y+height); 
-    }
-    //horrible first attempt at dithering, prepping for Ardubyoy 2-bit display (eg. only black & white)
-    //note to self: 
-        // will have to stop drawing floor & ceiling
-        // will need one "dither"-pattern for horizontal walls, another for vertical walls
-            // could potentially be as dumb as rendering every other pixel for verts, and every other *line* for horizontals?
-    void drawDottedLine(int x, int y, int height) const noexcept { 
-        const int bottom = y + height;
-        int cursor = y; 
-        const int dashLength = 5;    
-        while (cursor < bottom) {
-            drawVerticalLine(x, cursor, dashLength); //should of course be buffered and sent to drawLine*s*            
-            cursor += (dashLength*2);            
-        }
-    }
+    }   
     void setPixel(int x, int y) const noexcept {
         _r.drawPoint(x, y);
     }

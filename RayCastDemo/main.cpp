@@ -20,7 +20,7 @@ int main([[maybe_unused]]int argc, [[maybe_unused]] char* argv[]){
 		InputManager _input{};				
 		RayCaster ray{};		
 		ViewPoint _viewPoint{ Cfg::START_POS_X, Cfg::START_POS_Y, ANGLE_0 };
-		ray.prettyPrintLUTs();
+		//ray.prettyPrintLUTs();
 		while (!_input.quitRequested()) {
 			_input.update();						
 			_viewPoint.update(_input);
